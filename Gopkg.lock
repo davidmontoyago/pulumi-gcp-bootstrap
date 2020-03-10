@@ -222,9 +222,12 @@
   version = "v1.12.0"
 
 [[projects]]
-  digest = "1:fe7f30227a859dec217cbd68af3abf891846efe00bf6710c086a52e6d42b7ada"
+  digest = "1:8d30080e373bfa4f801bf7057ded18b2d89b3dbc1a6412a14731847c2ac404a8"
   name = "github.com/pulumi/pulumi-gcp"
-  packages = ["sdk/go/gcp/storage"]
+  packages = [
+    "sdk/go/gcp/kms",
+    "sdk/go/gcp/storage",
+  ]
   pruneopts = "UT"
   revision = "57459fa036d34107cb0ad8bb45ba9efa85cef729"
   version = "v2.8.0"
@@ -556,6 +559,7 @@
   analyzer-name = "dep"
   analyzer-version = 1
   input-imports = [
+    "github.com/pulumi/pulumi-gcp/sdk/go/gcp/kms",
     "github.com/pulumi/pulumi-gcp/sdk/go/gcp/storage",
     "github.com/pulumi/pulumi/sdk/go/pulumi",
   ]

@@ -2,7 +2,7 @@
 
 ### On day 0:
 
-Scaffold pulumi project and the **bootstrap** stack:
+Scaffold Pulumi project and the **bootstrap** stack:
 
 ```sh
 export PULUMI_CONFIG_PASSPHRASE=<>
@@ -19,5 +19,9 @@ pulumi new https://github.com/pulumi/templates/tree/master/gcp-go --dir ./ --for
 Bootstrap infrastructure:
 
 ```sh
+make pre-reqs
 
+dep ensure
+
+pulumi up
 ```
