@@ -17,10 +17,9 @@ type BootstrapComponents struct {
 
 	labels map[string]string
 
-	storage             *StorageComponents
-	logging             *LoggingComponents
-	policies            []*projects.OrganizationPolicy
-	stateBucketBindings []*storage.BucketIAMMember
+	storage     *StorageComponents
+	logging     *LoggingComponents
+	orgPolicies []*projects.OrganizationPolicy
 }
 
 // NewBootstrap creates a new bootstrap infrastructure stack with all components
@@ -73,23 +72,23 @@ func (b *BootstrapComponents) deploy(ctx *pulumi.Context, args *BootstrapArgs) e
 	}
 	b.storage = stateBucketComponents
 
-	bucketBindings, err := b.setupIAMBindingsForStateBucket(ctx, args)
-	if err != nil {
-		return fmt.Errorf("failed to create bucket bindings: %w", err)
-	}
-	b.stateBucketBindings = bucketBindings
-
 	loggingComponents, err := b.createSecureLoggingSinks(ctx, args)
 	if err != nil {
 		return fmt.Errorf("failed to create logging components: %w", err)
 	}
 	b.logging = loggingComponents
 
+	bucketBindings, err := b.setupIAMBindingsForStateBucket(ctx, args)
+	if err != nil {
+		return fmt.Errorf("failed to create bucket bindings: %w", err)
+	}
+	b.storage.stateBucketBindings = bucketBindings
+
 	policies, err := b.setupSecurityPolicies(ctx, args)
 	if err != nil {
 		return fmt.Errorf("failed to create org security policies: %w", err)
 	}
-	b.policies = policies
+	b.orgPolicies = policies
 
 	return nil
 }
@@ -119,4 +118,25 @@ func (b *BootstrapComponents) GetSecurityLogsBucketName() pulumi.StringOutput {
 	return b.logging.SecurityLogsBucket.Name
 }
 
-// TODO add missing getters
+// GetStorageComponents returns the storage components
+func (b *BootstrapComponents) GetStorageComponents() *StorageComponents {
+	return b.storage
+}
+
+// GetLoggingComponents returns the logging components
+func (b *BootstrapComponents) GetLoggingComponents() *LoggingComponents {
+	return b.logging
+}
+
+// GetOrganizationPolicies returns the organization policies
+func (b *BootstrapComponents) GetOrganizationPolicies() []*projects.OrganizationPolicy {
+	return b.orgPolicies
+}
+
+// GetStateBucketBindings returns the state bucket IAM bindings
+func (b *BootstrapComponents) GetStateBucketBindings() []*storage.BucketIAMMember {
+	if b.storage == nil {
+		return nil
+	}
+	return b.storage.stateBucketBindings
+}

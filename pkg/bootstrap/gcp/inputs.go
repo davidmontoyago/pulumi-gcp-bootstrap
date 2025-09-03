@@ -18,9 +18,9 @@ type BootstrapArgs struct {
 	LoggingRetentionDays int
 
 	// List of member groups are allowed to administer the infrastructure
-	AdminGroups []string
-	// List of member groups are allowed to operate the infrastructure as security admins
-	SecurityGroups []string
+	AdminMembers []string
+	// List of member groups are allowed to audit the infrastructure as security admins
+	SecurityMembers []string
 
 	// Labels to be applied to the resources
 	Labels map[string]string
