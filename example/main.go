@@ -19,21 +19,21 @@ func main() {
 
 		// Log the stack and project for verification
 		log.Printf("Deploying bootstrap infrastructure to stack: %s", ctx.Stack())
-		log.Printf("GCP Project: %s", cfg.GCPProject)
-		log.Printf("GCP Region: %s", cfg.GCPRegion)
+		log.Printf("GCP Project: %s", cfg.Project)
+		log.Printf("GCP Region: %s", cfg.Region)
+
+		// Convert config to bootstrap args using helper method
+		args := cfg.ToBootstrapArgs()
+
+		// Add default labels if none specified
+		if args.Labels == nil {
+			args.Labels = make(map[string]string)
+		}
+		args.Labels["project"] = cfg.Project
+		args.Labels["purpose"] = "day-1-infrastructure"
 
 		// Create bootstrap infrastructure with comprehensive security
-		bootstrap, err := gcp.NewBootstrap(ctx, "bootstrap", &gcp.BootstrapArgs{
-			Project:                      cfg.GCPProject,
-			Region:                       cfg.GCPRegion,
-			StateBucketKeyRotationPeriod: cfg.KMSKeyRotationPeriod,
-			LoggingDestinationProject:    cfg.LoggingDestinationProject,
-			LoggingRetentionDays:         cfg.LoggingRetentionDays,
-			Labels: map[string]string{
-				"project": cfg.GCPProject,
-				"purpose": "day-1-infrastructure",
-			},
-		})
+		bootstrap, err := gcp.NewBootstrap(ctx, "bootstrap", args)
 		if err != nil {
 			return err
 		}
@@ -46,9 +46,8 @@ func main() {
 		ctx.Export("securityLogsBucketName", bootstrap.GetSecurityLogsBucketName())
 
 		// Additional outputs for state management
-		ctx.Export("keyRingLocation", pulumi.String(cfg.GCPRegion))
-		ctx.Export("project", pulumi.String(cfg.GCPProject))
-		ctx.Export("environment", pulumi.String(cfg.Environment))
+		ctx.Export("keyRingLocation", pulumi.String(cfg.Region))
+		ctx.Export("project", pulumi.String(cfg.Project))
 
 		log.Println("Bootstrap infrastructure deployment completed successfully!")
 
