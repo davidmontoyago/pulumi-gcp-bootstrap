@@ -32,7 +32,7 @@ func main() {
 		args.Labels["project"] = cfg.Project
 		args.Labels["purpose"] = "day-1-infrastructure"
 
-		// Create bootstrap infrastructure with comprehensive security
+		// Deploy bootstrap infrastructure
 		bootstrap, err := gcp.NewBootstrap(ctx, "bootstrap", args)
 		if err != nil {
 			return err

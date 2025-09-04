@@ -46,7 +46,7 @@ Set the required environment variables:
 
 ```bash
 # Initialize Pulumi stack
-pulumi stack init dev
+pulumi stack init my-stack
 
 # Deploy the infrastructure
 pulumi up
@@ -78,32 +78,3 @@ make lint
 # Upgrade dependencies
 make upgrade
 ```
-
-## Outputs
-
-The component exports the following outputs for use in other stacks:
-
-```
-stateBucketName: string        // Name of the state storage bucket
-stateBucketURL: string         // Full URL of the state bucket
-kmsKeyID: string              // KMS crypto key ID (sensitive)
-auditLogsBucketName: string   // Audit logs bucket name
-securityLogsBucketName: string // Security logs bucket name
-keyRingLocation: string       // KMS key ring location
-project: string               // GCP project ID
-environment: string           // Environment label
-```
-
-## Contributing
-
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes following the existing patterns
-4. Add tests for new functionality
-5. Ensure all tests pass: `make test`
-6. Submit a pull request
-
-<!-- TODO change to Apache 2.0 and add the Apache 2 licence file. Just copy it from here: https://raw.githubusercontent.com/davidmontoyago/pulumi-gcp-fullstack/refs/heads/main/LICENSE  -->
-## License
-
-This project is licensed under the MIT License - see the LICENSE file for details.

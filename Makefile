@@ -1,12 +1,13 @@
 .PHONY: build clean test lint upgrade pre-reqs
 
 build: clean
-	go build -o ./build/ ./...
+	go build ./...
 
 test: build
 	go test -v -race -count=1 -timeout=30s -coverprofile=coverage.out ./...
 
 clean:
+	go work sync
 	go mod tidy
 	go mod verify
 
