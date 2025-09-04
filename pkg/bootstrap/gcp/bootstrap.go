@@ -10,8 +10,8 @@ import (
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 )
 
-// BootstrapComponents holds all the bootstrap infrastructure components
-type BootstrapComponents struct {
+// Bootstrap holds all the bootstrap infrastructure components
+type Bootstrap struct {
 	pulumi.ResourceState
 	Namer
 
@@ -23,7 +23,7 @@ type BootstrapComponents struct {
 }
 
 // NewBootstrap creates a new bootstrap infrastructure stack with all components
-func NewBootstrap(ctx *pulumi.Context, name string, args *BootstrapArgs) (*BootstrapComponents, error) {
+func NewBootstrap(ctx *pulumi.Context, name string, args *BootstrapArgs, opts ...pulumi.ResourceOption) (*Bootstrap, error) {
 	if args == nil {
 		return nil, fmt.Errorf("args are required")
 	}
@@ -40,32 +40,38 @@ func NewBootstrap(ctx *pulumi.Context, name string, args *BootstrapArgs) (*Boots
 		maps.Copy(defaultLabels, args.Labels)
 	}
 
-	bootstrapComponents := &BootstrapComponents{
+	bootstrap := &Bootstrap{
 		Namer: *NewNamer(name),
 
 		labels: defaultLabels,
 	}
 
-	err := bootstrapComponents.deploy(ctx, args)
+	err := ctx.RegisterComponentResource("pulumi-gcp-bootstrap:gcp:Bootstrap", name, bootstrap, opts...)
+	if err != nil {
+		return nil, fmt.Errorf("failed to register component resource: %w", err)
+	}
+
+	// Deploy the infrastructure
+	err = bootstrap.deploy(ctx, args)
 	if err != nil {
 		return nil, fmt.Errorf("failed to deploy bootstrap components: %w", err)
 	}
 
-	err = ctx.RegisterResourceOutputs(bootstrapComponents, pulumi.Map{
-		"stateBucketName":        bootstrapComponents.GetStateBucketName(),
-		"stateBucketURL":         bootstrapComponents.GetStateBucketURL(),
-		"stateBucketKMSKeyID":    bootstrapComponents.GetKMSKeyID(),
-		"auditLogsBucketName":    bootstrapComponents.GetAuditLogsBucketName(),
-		"securityLogsBucketName": bootstrapComponents.GetSecurityLogsBucketName(),
+	err = ctx.RegisterResourceOutputs(bootstrap, pulumi.Map{
+		"stateBucketName":        bootstrap.GetStateBucketName(),
+		"stateBucketURL":         bootstrap.GetStateBucketURL(),
+		"stateBucketKMSKeyID":    bootstrap.GetKMSKeyID(),
+		"auditLogsBucketName":    bootstrap.GetAuditLogsBucketName(),
+		"securityLogsBucketName": bootstrap.GetSecurityLogsBucketName(),
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to register resource outputs: %w", err)
 	}
 
-	return bootstrapComponents, nil
+	return bootstrap, nil
 }
 
-func (b *BootstrapComponents) deploy(ctx *pulumi.Context, args *BootstrapArgs) error {
+func (b *Bootstrap) deploy(ctx *pulumi.Context, args *BootstrapArgs) error {
 	stateBucketComponents, err := b.createSecureStateBucket(ctx, args)
 	if err != nil {
 		return fmt.Errorf("failed to create storage components: %w", err)
@@ -94,47 +100,47 @@ func (b *BootstrapComponents) deploy(ctx *pulumi.Context, args *BootstrapArgs) e
 }
 
 // GetStateBucketName returns the state bucket name
-func (b *BootstrapComponents) GetStateBucketName() pulumi.StringOutput {
+func (b *Bootstrap) GetStateBucketName() pulumi.StringOutput {
 	return b.storage.StateBucket.Name
 }
 
 // GetStateBucketURL returns the state bucket URL
-func (b *BootstrapComponents) GetStateBucketURL() pulumi.StringOutput {
+func (b *Bootstrap) GetStateBucketURL() pulumi.StringOutput {
 	return b.storage.StateBucket.Url
 }
 
 // GetKMSKeyID returns the KMS crypto key ID
-func (b *BootstrapComponents) GetKMSKeyID() pulumi.IDOutput {
+func (b *Bootstrap) GetKMSKeyID() pulumi.IDOutput {
 	return b.storage.CryptoKey.ID()
 }
 
 // GetAuditLogsBucketName returns the audit logs bucket name
-func (b *BootstrapComponents) GetAuditLogsBucketName() pulumi.StringOutput {
+func (b *Bootstrap) GetAuditLogsBucketName() pulumi.StringOutput {
 	return b.logging.AuditLogsBucket.Name
 }
 
 // GetSecurityLogsBucketName returns the security logs bucket name
-func (b *BootstrapComponents) GetSecurityLogsBucketName() pulumi.StringOutput {
+func (b *Bootstrap) GetSecurityLogsBucketName() pulumi.StringOutput {
 	return b.logging.SecurityLogsBucket.Name
 }
 
 // GetStorageComponents returns the storage components
-func (b *BootstrapComponents) GetStorageComponents() *StorageComponents {
+func (b *Bootstrap) GetStorageComponents() *StorageComponents {
 	return b.storage
 }
 
 // GetLoggingComponents returns the logging components
-func (b *BootstrapComponents) GetLoggingComponents() *LoggingComponents {
+func (b *Bootstrap) GetLoggingComponents() *LoggingComponents {
 	return b.logging
 }
 
 // GetOrganizationPolicies returns the organization policies
-func (b *BootstrapComponents) GetOrganizationPolicies() []*projects.OrganizationPolicy {
+func (b *Bootstrap) GetOrganizationPolicies() []*projects.OrganizationPolicy {
 	return b.orgPolicies
 }
 
 // GetStateBucketBindings returns the state bucket IAM bindings
-func (b *BootstrapComponents) GetStateBucketBindings() []*storage.BucketIAMMember {
+func (b *Bootstrap) GetStateBucketBindings() []*storage.BucketIAMMember {
 	if b.storage == nil {
 		return nil
 	}

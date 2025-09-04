@@ -18,7 +18,7 @@ type LoggingComponents struct {
 }
 
 // createSecureLoggingSinks creates secure logging infrastructure with best practices
-func (b *BootstrapComponents) createSecureLoggingSinks(ctx *pulumi.Context, config *BootstrapArgs) (*LoggingComponents, error) {
+func (b *Bootstrap) createSecureLoggingSinks(ctx *pulumi.Context, config *BootstrapArgs) (*LoggingComponents, error) {
 
 	// Create dedicated bucket for audit logs
 	auditLogsBucketLabels := maps.Clone(b.labels)

@@ -8,7 +8,7 @@ import (
 )
 
 // setupSecurityPolicies creates project-level organization policy constraints for security
-func (b *BootstrapComponents) setupSecurityPolicies(ctx *pulumi.Context, config *BootstrapArgs) ([]*projects.OrganizationPolicy, error) {
+func (b *Bootstrap) setupSecurityPolicies(ctx *pulumi.Context, config *BootstrapArgs) ([]*projects.OrganizationPolicy, error) {
 	var orgPolicies []*projects.OrganizationPolicy
 
 	// Require uniform bucket-level access
