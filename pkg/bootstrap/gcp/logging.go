@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"maps"
 
+	"github.com/pulumi/pulumi-gcp/sdk/v8/go/gcp/kms"
 	"github.com/pulumi/pulumi-gcp/sdk/v8/go/gcp/logging"
 	"github.com/pulumi/pulumi-gcp/sdk/v8/go/gcp/storage"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
@@ -12,33 +13,39 @@ import (
 // LoggingComponents holds the logging-related infrastructure components
 type LoggingComponents struct {
 	AuditLogsBucket    *storage.Bucket
-	SecurityLogsBucket *storage.Bucket
+	AuditLogsKeyRing   *kms.KeyRing
+	AuditLogsCryptoKey *kms.CryptoKey
 	AuditLogSink       *logging.ProjectSink
-	SecurityLogSink    *logging.ProjectSink
+
+	SecurityLogsBucket    *storage.Bucket
+	SecurityLogsKeyRing   *kms.KeyRing
+	SecurityLogsCryptoKey *kms.CryptoKey
+	SecurityLogSink       *logging.ProjectSink
 }
 
 // createSecureLoggingSinks creates secure logging infrastructure with best practices
 func (b *Bootstrap) createSecureLoggingSinks(ctx *pulumi.Context, config *BootstrapArgs) (*LoggingComponents, error) {
 
+	auditBucketDeps := []pulumi.Resource{}
+
+	loggingComponents := &LoggingComponents{}
+
 	// Create dedicated bucket for audit logs
 	auditLogsBucketLabels := maps.Clone(b.labels)
 	auditLogsBucketLabels["purpose"] = "audit-logs"
 	auditLogsBucketName := b.NewResourceName("audit-logs", "bucket", 63)
-	auditLogsBucket, err := storage.NewBucket(ctx, auditLogsBucketName, &storage.BucketArgs{
+	auditLogsBucketArgs := &storage.BucketArgs{
 		Name:     pulumi.String(auditLogsBucketName),
 		Location: pulumi.String(config.Region),
 		Project:  pulumi.String(config.LoggingDestinationProject),
 
-		// Security settings
 		UniformBucketLevelAccess: pulumi.Bool(true),
 		PublicAccessPrevention:   pulumi.String("enforced"),
 
-		// Versioning for log protection
 		Versioning: &storage.BucketVersioningArgs{
 			Enabled: pulumi.Bool(true),
 		},
 
-		// Similar lifecycle rules as audit logs
 		LifecycleRules: storage.BucketLifecycleRuleArray{
 			&storage.BucketLifecycleRuleArgs{
 				Action: &storage.BucketLifecycleRuleActionArgs{
@@ -77,33 +84,50 @@ func (b *Bootstrap) createSecureLoggingSinks(ctx *pulumi.Context, config *Bootst
 			},
 		},
 		Labels: mapToStringMapInput(auditLogsBucketLabels),
-	}, pulumi.Parent(b))
+	}
+
+	if config.EnableCustomerManagedEncryption {
+		// Create customer-managed key ring and key for encryption
+		keyRing, cryptoKey, err := b.createEncryptionKey(ctx, config)
+		if err != nil {
+			return nil, err
+		}
+
+		// Add encryption key to audit logs bucket
+		auditLogsBucketArgs.Encryption = &storage.BucketEncryptionArgs{
+			DefaultKmsKeyName: cryptoKey.ID(),
+		}
+
+		loggingComponents.AuditLogsKeyRing = keyRing
+		loggingComponents.AuditLogsCryptoKey = cryptoKey
+
+		auditBucketDeps = append(auditBucketDeps, cryptoKey)
+	}
+
+	auditLogsBucket, err := storage.NewBucket(ctx, auditLogsBucketName, auditLogsBucketArgs,
+		pulumi.Parent(b), pulumi.DependsOn(auditBucketDeps))
 	if err != nil {
 		return nil, fmt.Errorf("failed to create audit logs bucket: %w", err)
 	}
+
+	securityBucketDeps := []pulumi.Resource{}
 
 	// Create dedicated bucket for security logs
 	securityLogsBucketLabels := maps.Clone(b.labels)
 	securityLogsBucketLabels["purpose"] = "security-logs"
 	securityLogsBucketName := b.NewResourceName("security-logs", "bucket", 63)
-	securityLogsBucket, err := storage.NewBucket(ctx, securityLogsBucketName, &storage.BucketArgs{
+	securityLogsBucketArgs := &storage.BucketArgs{
 		Name:     pulumi.String(securityLogsBucketName),
 		Location: pulumi.String(config.Region),
 		Project:  pulumi.String(config.LoggingDestinationProject),
 
-		// Security settings
 		UniformBucketLevelAccess: pulumi.Bool(true),
 		PublicAccessPrevention:   pulumi.String("enforced"),
 
-		// Encryption with Google-managed keys (default encryption enabled)
-		Encryption: &storage.BucketEncryptionArgs{},
-
-		// Versioning for log protection
 		Versioning: &storage.BucketVersioningArgs{
 			Enabled: pulumi.Bool(true),
 		},
 
-		// Similar lifecycle rules as audit logs
 		LifecycleRules: storage.BucketLifecycleRuleArray{
 			&storage.BucketLifecycleRuleArgs{
 				Action: &storage.BucketLifecycleRuleActionArgs{
@@ -142,7 +166,28 @@ func (b *Bootstrap) createSecureLoggingSinks(ctx *pulumi.Context, config *Bootst
 			},
 		},
 		Labels: mapToStringMapInput(securityLogsBucketLabels),
-	}, pulumi.Parent(b))
+	}
+
+	if config.EnableCustomerManagedEncryption {
+		// Create customer-managed key ring and key for encryption
+		keyRing, cryptoKey, err := b.createEncryptionKey(ctx, config)
+		if err != nil {
+			return nil, err
+		}
+
+		// Add encryption key to security logs bucket
+		securityLogsBucketArgs.Encryption = &storage.BucketEncryptionArgs{
+			DefaultKmsKeyName: cryptoKey.ID(),
+		}
+
+		loggingComponents.SecurityLogsKeyRing = keyRing
+		loggingComponents.SecurityLogsCryptoKey = cryptoKey
+
+		securityBucketDeps = append(securityBucketDeps, cryptoKey)
+	}
+
+	securityLogsBucket, err := storage.NewBucket(ctx, securityLogsBucketName, securityLogsBucketArgs,
+		pulumi.Parent(b), pulumi.DependsOn(securityBucketDeps))
 	if err != nil {
 		return nil, fmt.Errorf("failed to create security logs bucket: %w", err)
 	}
@@ -216,10 +261,10 @@ func (b *Bootstrap) createSecureLoggingSinks(ctx *pulumi.Context, config *Bootst
 		return nil, fmt.Errorf("failed to create security log sink: %w", err)
 	}
 
-	return &LoggingComponents{
-		AuditLogsBucket:    auditLogsBucket,
-		SecurityLogsBucket: securityLogsBucket,
-		AuditLogSink:       auditLogSink,
-		SecurityLogSink:    securityLogSink,
-	}, nil
+	loggingComponents.AuditLogsBucket = auditLogsBucket
+	loggingComponents.SecurityLogsBucket = securityLogsBucket
+	loggingComponents.AuditLogSink = auditLogSink
+	loggingComponents.SecurityLogSink = securityLogSink
+
+	return loggingComponents, nil
 }

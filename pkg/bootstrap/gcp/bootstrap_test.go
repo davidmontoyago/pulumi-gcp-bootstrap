@@ -9,7 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestNewBootstrap_HappyPath(t *testing.T) {
+func TestNewBootstrap_DefaultConfiguration(t *testing.T) {
 	t.Parallel()
 
 	err := pulumi.RunErr(func(ctx *pulumi.Context) error {
@@ -60,16 +60,6 @@ func TestNewBootstrap_HappyPath(t *testing.T) {
 		stateBucketURL := <-stateBucketURLCh
 		assert.Equal(t, "gs://test-bucket", stateBucketURL, "State bucket URL should match")
 
-		// Verify KMS key ID
-		kmsKeyIDCh := make(chan string, 1)
-		defer close(kmsKeyIDCh)
-		bootstrap.GetKMSKeyID().ApplyT(func(keyID string) error {
-			kmsKeyIDCh <- keyID
-			return nil
-		})
-		kmsKeyID := <-kmsKeyIDCh
-		assert.Contains(t, kmsKeyID, "test-bootstrap-state-bucket-crypto-key-kms", "KMS key ID should contain expected pattern")
-
 		// Verify audit logs bucket name
 		auditLogsBucketNameCh := make(chan string, 1)
 		defer close(auditLogsBucketNameCh)
@@ -93,8 +83,7 @@ func TestNewBootstrap_HappyPath(t *testing.T) {
 		// Verify storage components
 		storageComponents := bootstrap.GetStorageComponents()
 		require.NotNil(t, storageComponents, "Storage components should not be nil")
-		require.NotNil(t, storageComponents.KeyRing, "KMS KeyRing should not be nil")
-		require.NotNil(t, storageComponents.CryptoKey, "KMS CryptoKey should not be nil")
+
 		require.NotNil(t, storageComponents.StateBucket, "State bucket should not be nil")
 
 		// Verify logging components
@@ -162,4 +151,163 @@ func (m *testMocks) NewResource(args pulumi.MockResourceArgs) (string, resource.
 
 func (m *testMocks) Call(args pulumi.MockCallArgs) (resource.PropertyMap, error) {
 	return resource.PropertyMap{}, nil
+}
+
+func TestNewBootstrap_WithCustomerManagedKeys(t *testing.T) {
+	t.Parallel()
+
+	err := pulumi.RunErr(func(ctx *pulumi.Context) error {
+		// Test args with customer-managed encryption enabled
+		args := &BootstrapArgs{
+			Project:                                 "test-project",
+			Region:                                  "us-central1",
+			StateBucketKeyRotationPeriod:            "7776000s", // 90 days
+			StateBucketArchivedObjectsRetentionDays: 7,
+			LoggingDestinationProject:               "test-logging-project",
+			LoggingRetentionDays:                    365,
+			AdminMembers:                            []string{"admin-group@example.com"},
+			SecurityMembers:                         []string{"security-group@example.com"},
+			EnableCustomerManagedEncryption:         true, // Enable customer-managed encryption
+			Labels: map[string]string{
+				"environment": "test",
+				"team":        "bootstrap",
+			},
+		}
+
+		bootstrap, err := NewBootstrap(ctx, "test-bootstrap", args)
+		require.NoError(t, err)
+
+		// Verify KMS key ID for state bucket
+		kmsKeyIDCh := make(chan string, 1)
+		defer close(kmsKeyIDCh)
+		bootstrap.GetKMSKeyID().ApplyT(func(keyID string) error {
+			kmsKeyIDCh <- keyID
+			return nil
+		})
+		kmsKeyID := <-kmsKeyIDCh
+		assert.Contains(t, kmsKeyID, "state-bucket-crypto-key", "KMS key ID should contain expected pattern")
+
+		// Verify storage components have KMS resources
+		storageComponents := bootstrap.GetStorageComponents()
+		require.NotNil(t, storageComponents, "Storage components should not be nil")
+		require.NotNil(t, storageComponents.KeyRing, "State bucket KMS KeyRing should not be nil")
+		require.NotNil(t, storageComponents.CryptoKey, "State bucket KMS CryptoKey should not be nil")
+		require.NotNil(t, storageComponents.StateBucket, "State bucket should not be nil")
+
+		// Verify logging components have KMS resources for both buckets
+		loggingComponents := bootstrap.GetLoggingComponents()
+		require.NotNil(t, loggingComponents, "Logging components should not be nil")
+
+		// Audit logs bucket and its KMS resources
+		require.NotNil(t, loggingComponents.AuditLogsBucket, "Audit logs bucket should not be nil")
+		require.NotNil(t, loggingComponents.AuditLogsKeyRing, "Audit logs KMS KeyRing should not be nil")
+		require.NotNil(t, loggingComponents.AuditLogsCryptoKey, "Audit logs KMS CryptoKey should not be nil")
+
+		// Security logs bucket and its KMS resources
+		require.NotNil(t, loggingComponents.SecurityLogsBucket, "Security logs bucket should not be nil")
+		require.NotNil(t, loggingComponents.SecurityLogsKeyRing, "Security logs KMS KeyRing should not be nil")
+		require.NotNil(t, loggingComponents.SecurityLogsCryptoKey, "Security logs KMS CryptoKey should not be nil")
+
+		// Verify sinks are still created
+		require.NotNil(t, loggingComponents.AuditLogSink, "Audit log sink should not be nil")
+		require.NotNil(t, loggingComponents.SecurityLogSink, "Security log sink should not be nil")
+
+		// Verify that all three buckets have their own dedicated KMS keys
+		// by checking that the key IDs are different for each bucket
+		stateBucketKeyIDCh := make(chan string, 1)
+		defer close(stateBucketKeyIDCh)
+		storageComponents.CryptoKey.ID().ApplyT(func(keyID string) error {
+			stateBucketKeyIDCh <- keyID
+			return nil
+		})
+		stateBucketKeyID := <-stateBucketKeyIDCh
+
+		auditLogsKeyIDCh := make(chan string, 1)
+		defer close(auditLogsKeyIDCh)
+		loggingComponents.AuditLogsCryptoKey.ID().ApplyT(func(keyID string) error {
+			auditLogsKeyIDCh <- keyID
+			return nil
+		})
+		auditLogsKeyID := <-auditLogsKeyIDCh
+
+		securityLogsKeyIDCh := make(chan string, 1)
+		defer close(securityLogsKeyIDCh)
+		loggingComponents.SecurityLogsCryptoKey.ID().ApplyT(func(keyID string) error {
+			securityLogsKeyIDCh <- keyID
+			return nil
+		})
+		securityLogsKeyID := <-securityLogsKeyIDCh
+
+		// Each bucket should have its own dedicated KMS key
+		assert.NotEmpty(t, stateBucketKeyID, "State bucket should have a KMS key ID")
+		assert.NotEmpty(t, auditLogsKeyID, "Audit logs bucket should have a KMS key ID")
+		assert.NotEmpty(t, securityLogsKeyID, "Security logs bucket should have a KMS key ID")
+
+		// Verify organization policies and IAM bindings are still created
+		orgPolicies := bootstrap.GetOrganizationPolicies()
+		require.NotNil(t, orgPolicies, "Organization policies should not be nil")
+		assert.Equal(t, 4, len(orgPolicies), "Should have exactly 4 organization policies")
+
+		stateBucketBindings := bootstrap.GetStateBucketBindings()
+		require.NotNil(t, stateBucketBindings, "State bucket bindings should not be nil")
+		assert.Equal(t, 8, len(stateBucketBindings), "Should have 8 IAM bindings")
+
+		return nil
+	}, pulumi.WithMocks("project", "stack", &testMocks{}))
+
+	if err != nil {
+		t.Fatalf("Pulumi WithMocks failed: %v", err)
+	}
+}
+
+func TestNewBootstrap_WithoutCustomerManagedKeys(t *testing.T) {
+	t.Parallel()
+
+	err := pulumi.RunErr(func(ctx *pulumi.Context) error {
+		// Test args with customer-managed encryption disabled (default)
+		args := &BootstrapArgs{
+			Project:                                 "test-project",
+			Region:                                  "us-central1",
+			StateBucketKeyRotationPeriod:            "7776000s", // 90 days
+			StateBucketArchivedObjectsRetentionDays: 7,
+			LoggingDestinationProject:               "test-logging-project",
+			LoggingRetentionDays:                    365,
+			AdminMembers:                            []string{"admin-group@example.com"},
+			SecurityMembers:                         []string{"security-group@example.com"},
+			EnableCustomerManagedEncryption:         false, // Disable customer-managed encryption
+			Labels: map[string]string{
+				"environment": "test",
+				"team":        "bootstrap",
+			},
+		}
+
+		bootstrap, err := NewBootstrap(ctx, "test-bootstrap", args)
+		require.NoError(t, err)
+
+		// Verify storage components do NOT have KMS resources when disabled
+		storageComponents := bootstrap.GetStorageComponents()
+		require.NotNil(t, storageComponents, "Storage components should not be nil")
+		assert.Nil(t, storageComponents.KeyRing, "State bucket KMS KeyRing should be nil when encryption disabled")
+		assert.Nil(t, storageComponents.CryptoKey, "State bucket KMS CryptoKey should be nil when encryption disabled")
+		require.NotNil(t, storageComponents.StateBucket, "State bucket should still exist")
+
+		// Verify logging components do NOT have KMS resources when disabled
+		loggingComponents := bootstrap.GetLoggingComponents()
+		require.NotNil(t, loggingComponents, "Logging components should not be nil")
+
+		// Buckets should exist but without KMS resources
+		require.NotNil(t, loggingComponents.AuditLogsBucket, "Audit logs bucket should not be nil")
+		assert.Nil(t, loggingComponents.AuditLogsKeyRing, "Audit logs KMS KeyRing should be nil when encryption disabled")
+		assert.Nil(t, loggingComponents.AuditLogsCryptoKey, "Audit logs KMS CryptoKey should be nil when encryption disabled")
+
+		require.NotNil(t, loggingComponents.SecurityLogsBucket, "Security logs bucket should not be nil")
+		assert.Nil(t, loggingComponents.SecurityLogsKeyRing, "Security logs KMS KeyRing should be nil when encryption disabled")
+		assert.Nil(t, loggingComponents.SecurityLogsCryptoKey, "Security logs KMS CryptoKey should be nil when encryption disabled")
+
+		return nil
+	}, pulumi.WithMocks("project", "stack", &testMocks{}))
+
+	if err != nil {
+		t.Fatalf("Pulumi WithMocks failed: %v", err)
+	}
 }

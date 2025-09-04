@@ -31,58 +31,26 @@ type StorageComponents struct {
 }
 
 // createSecureStateBucket creates a secure GCS bucket for infrastructure state with best practices
-func (b *BootstrapComponents) createSecureStateBucket(ctx *pulumi.Context, config *BootstrapArgs) (*StorageComponents, error) {
-
-	// Create KMS key ring for encryption
-	keyRingName := b.NewResourceName("state-bucket-key-ring", "kms", 63)
-	keyRing, err := kms.NewKeyRing(ctx, keyRingName, &kms.KeyRingArgs{
-		Location: pulumi.String(config.Region),
-		Project:  pulumi.String(config.Project),
-	}, pulumi.Parent(b))
-	if err != nil {
-		return nil, fmt.Errorf("failed to create KMS key ring: %w", err)
-	}
-
-	// Create crypto key for bucket encryption with rotation
-	cryptoKeyName := b.NewResourceName("state-bucket-crypto-key", "kms", 63)
-	cryptoKey, err := kms.NewCryptoKey(ctx, cryptoKeyName, &kms.CryptoKeyArgs{
-		KeyRing:        keyRing.ID(),
-		RotationPeriod: pulumi.String(config.StateBucketKeyRotationPeriod),
-		VersionTemplate: &kms.CryptoKeyVersionTemplateArgs{
-			Algorithm:       pulumi.String("GOOGLE_SYMMETRIC_ENCRYPTION"),
-			ProtectionLevel: pulumi.String("SOFTWARE"),
-		},
-		Purpose: pulumi.String("ENCRYPT_DECRYPT"),
-	}, pulumi.Parent(b), pulumi.DependsOn([]pulumi.Resource{keyRing}))
-	if err != nil {
-		return nil, fmt.Errorf("failed to create crypto key: %w", err)
-	}
+func (b *Bootstrap) createSecureStateBucket(ctx *pulumi.Context, config *BootstrapArgs) (*StorageComponents, error) {
+	bucketDeps := []pulumi.Resource{}
 
 	stateBucketLabels := maps.Clone(b.labels)
 	stateBucketLabels["purpose"] = "infrastructure-state"
 
 	// Create secure storage bucket with comprehensive security settings
 	stateBucketName := b.NewResourceName("state", "bucket", 63)
-	bucket, err := storage.NewBucket(ctx, stateBucketName, &storage.BucketArgs{
+	stateBucketArgs := &storage.BucketArgs{
 		Name:     pulumi.Sprintf(stateBucketName),
 		Location: pulumi.String(config.Region),
 		Project:  pulumi.String(config.Project),
 
-		// Security settings
 		UniformBucketLevelAccess: pulumi.Bool(true),
 		PublicAccessPrevention:   pulumi.String("enforced"),
 
-		// Encryption with customer-managed key
-		Encryption: &storage.BucketEncryptionArgs{
-			DefaultKmsKeyName: cryptoKey.ID(),
-		},
-
-		// Versioning for state protection
 		Versioning: &storage.BucketVersioningArgs{
 			Enabled: pulumi.Bool(true),
 		},
 
-		// Delete archived older objects versions
 		LifecycleRules: storage.BucketLifecycleRuleArray{
 			&storage.BucketLifecycleRuleArgs{
 				Action: &storage.BucketLifecycleRuleActionArgs{
@@ -96,21 +64,41 @@ func (b *BootstrapComponents) createSecureStateBucket(ctx *pulumi.Context, confi
 			},
 		},
 
-		// Labels for resource management
 		Labels: mapToStringMapInput(stateBucketLabels),
-	}, pulumi.Parent(b), pulumi.DependsOn([]pulumi.Resource{cryptoKey}))
+	}
+
+	// Prepare response
+	storageComponents := &StorageComponents{}
+
+	if config.EnableCustomerManagedEncryption {
+		// Create customer-managed key ring and key for encryption
+		keyRing, cryptoKey, err := b.createEncryptionKey(ctx, config)
+		if err != nil {
+			return nil, err
+		}
+
+		// Add encryption key to state bucket
+		stateBucketArgs.Encryption = &storage.BucketEncryptionArgs{
+			DefaultKmsKeyName: cryptoKey.ID(),
+		}
+
+		storageComponents.KeyRing = keyRing
+		storageComponents.CryptoKey = cryptoKey
+
+		bucketDeps = append(bucketDeps, cryptoKey)
+	}
+
+	bucket, err := storage.NewBucket(ctx, stateBucketName, stateBucketArgs,
+		pulumi.Parent(b), pulumi.DependsOn(bucketDeps))
 	if err != nil {
 		return nil, fmt.Errorf("failed to create state bucket: %w", err)
 	}
+	storageComponents.StateBucket = bucket
 
-	return &StorageComponents{
-		KeyRing:     keyRing,
-		CryptoKey:   cryptoKey,
-		StateBucket: bucket,
-	}, nil
+	return storageComponents, nil
 }
 
-func (b *BootstrapComponents) setupIAMBindingsForStateBucket(ctx *pulumi.Context, config *BootstrapArgs) ([]*storage.BucketIAMMember, error) {
+func (b *Bootstrap) setupIAMBindingsForStateBucket(ctx *pulumi.Context, config *BootstrapArgs) ([]*storage.BucketIAMMember, error) {
 	var bucketBindings []*storage.BucketIAMMember
 
 	// Create bucket IAM member bindings for admin groups on audit logs bucket

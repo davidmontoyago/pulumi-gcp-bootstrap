@@ -17,6 +17,11 @@ type BootstrapArgs struct {
 	// Number of days to retain audit and security logs. Defaults to 365 days.
 	LoggingRetentionDays int
 
+	// Whether to use customer-managed KMS keys for all state and logging buckets
+	// If false, Google-managed keys are used.
+	// Enable for compliance and audit purposes in production environments.
+	EnableCustomerManagedEncryption bool
+
 	// List of member groups are allowed to administer the infrastructure
 	AdminMembers []string
 	// List of member groups are allowed to audit the infrastructure as security admins

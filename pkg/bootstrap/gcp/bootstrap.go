@@ -60,9 +60,10 @@ func NewBootstrap(ctx *pulumi.Context, name string, args *BootstrapArgs, opts ..
 	err = ctx.RegisterResourceOutputs(bootstrap, pulumi.Map{
 		"stateBucketName":        bootstrap.GetStateBucketName(),
 		"stateBucketURL":         bootstrap.GetStateBucketURL(),
-		"stateBucketKMSKeyID":    bootstrap.GetKMSKeyID(),
 		"auditLogsBucketName":    bootstrap.GetAuditLogsBucketName(),
+		"auditLogsBucketURL":     bootstrap.GetAuditLogsBucketURL(),
 		"securityLogsBucketName": bootstrap.GetSecurityLogsBucketName(),
+		"securityLogsBucketURL":  bootstrap.GetSecurityLogsBucketURL(),
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to register resource outputs: %w", err)
@@ -145,4 +146,14 @@ func (b *Bootstrap) GetStateBucketBindings() []*storage.BucketIAMMember {
 		return nil
 	}
 	return b.storage.stateBucketBindings
+}
+
+// GetAuditLogsBucketURL returns the audit logs bucket URL
+func (b *Bootstrap) GetAuditLogsBucketURL() pulumi.StringOutput {
+	return b.logging.AuditLogsBucket.Url
+}
+
+// GetSecurityLogsBucketURL returns the security logs bucket URL
+func (b *Bootstrap) GetSecurityLogsBucketURL() pulumi.StringOutput {
+	return b.logging.SecurityLogsBucket.Url
 }

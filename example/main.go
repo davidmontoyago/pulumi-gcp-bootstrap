@@ -41,12 +41,11 @@ func main() {
 		// Export important outputs for other stacks and tooling
 		ctx.Export("stateBucketName", bootstrap.GetStateBucketName())
 		ctx.Export("stateBucketURL", bootstrap.GetStateBucketURL())
-		ctx.Export("kmsKeyID", pulumi.ToSecret(bootstrap.GetKMSKeyID()))
 		ctx.Export("auditLogsBucketName", bootstrap.GetAuditLogsBucketName())
 		ctx.Export("securityLogsBucketName", bootstrap.GetSecurityLogsBucketName())
 
 		// Additional outputs for state management
-		ctx.Export("keyRingLocation", pulumi.String(cfg.Region))
+		ctx.Export("region", pulumi.String(cfg.Region))
 		ctx.Export("project", pulumi.String(cfg.Project))
 
 		log.Println("Bootstrap infrastructure deployment completed successfully!")
