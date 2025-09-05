@@ -32,6 +32,58 @@ func (b *Bootstrap) createSecureLoggingSinks(ctx *pulumi.Context, config *Bootst
 	}
 
 	// Create audit log sink for comprehensive audit trail
+	auditLogSink, err := b.createAuditLogsSink(ctx, config, auditLogsStorage.LogsBucket)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to create audit log sink: %w", err)
+	}
+
+	auditLogsStorage.LogSink = auditLogSink
+
+	// Create security log sink for security-related events
+	securityLogSink, err := b.createSecurityLogsSink(ctx, config, securityLogsStorage.LogsBucket)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to create security log sink: %w", err)
+	}
+
+	securityLogsStorage.LogSink = securityLogSink
+
+	return auditLogsStorage, securityLogsStorage, nil
+}
+
+func (b *Bootstrap) createSecurityLogsSink(ctx *pulumi.Context, config *BootstrapArgs, securityLogsBucket *storage.Bucket) (*logging.ProjectSink, error) {
+	securityLogSinkName := b.NewResourceName("security-logs", "sink", 63)
+	securityLogSink, err := logging.NewProjectSink(ctx, securityLogSinkName, &logging.ProjectSinkArgs{
+		Name:    pulumi.Sprintf(securityLogSinkName),
+		Project: pulumi.String(config.Project),
+
+		// Security-focused log filter
+		Filter: pulumi.String(`(
+			protoPayload.serviceName="iam.googleapis.com" OR
+			protoPayload.serviceName="serviceusage.googleapis.com" OR
+			protoPayload.serviceName="orgpolicy.googleapis.com" OR
+			(protoPayload.serviceName="compute.googleapis.com" AND
+				(protoPayload.methodName:"firewall" OR protoPayload.methodName:"route"))
+		) OR
+		severity="ERROR" OR severity="CRITICAL" OR
+		jsonPayload.incident_id!="" OR
+		jsonPayload.finding_id!="" OR
+		resource.type="gce_firewall_rule" OR
+		resource.type="vpc_flow_log"`),
+
+		Destination: securityLogsBucket.Name.ApplyT(func(name string) string {
+			return fmt.Sprintf("storage.googleapis.com/%s", name)
+		}).(pulumi.StringOutput),
+
+		// Enable unique writer identity for security
+		UniqueWriterIdentity: pulumi.Bool(true),
+	}, pulumi.Parent(b), pulumi.DependsOn([]pulumi.Resource{securityLogsBucket}))
+	if err != nil {
+		return nil, fmt.Errorf("failed to create security log sink: %w", err)
+	}
+	return securityLogSink, nil
+}
+
+func (b *Bootstrap) createAuditLogsSink(ctx *pulumi.Context, config *BootstrapArgs, auditLogsBucket *storage.Bucket) (*logging.ProjectSink, error) {
 	auditLogSinkName := b.NewResourceName("audit-logs", "sink", 63)
 	auditLogSink, err := logging.NewProjectSink(ctx, auditLogSinkName, &logging.ProjectSinkArgs{
 		Name:    pulumi.Sprintf(auditLogSinkName),
@@ -58,53 +110,17 @@ func (b *Bootstrap) createSecureLoggingSinks(ctx *pulumi.Context, config *Bootst
 			protoPayload.methodName:"insert"
 		)`),
 
-		Destination: auditLogsStorage.LogsBucket.Name.ApplyT(func(name string) string {
+		Destination: auditLogsBucket.Name.ApplyT(func(name string) string {
 			return fmt.Sprintf("storage.googleapis.com/%s", name)
 		}).(pulumi.StringOutput),
 
 		// Enable unique writer identity for security
 		UniqueWriterIdentity: pulumi.Bool(true),
-	}, pulumi.Parent(b), pulumi.DependsOn([]pulumi.Resource{auditLogsStorage.LogsBucket}))
+	}, pulumi.Parent(b), pulumi.DependsOn([]pulumi.Resource{auditLogsBucket}))
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to create audit log sink: %w", err)
+		return nil, fmt.Errorf("failed to create audit log sink: %w", err)
 	}
-
-	auditLogsStorage.LogSink = auditLogSink
-
-	// Create security log sink for security-related events
-	securityLogSinkName := b.NewResourceName("security-logs", "sink", 63)
-	securityLogSink, err := logging.NewProjectSink(ctx, securityLogSinkName, &logging.ProjectSinkArgs{
-		Name:    pulumi.Sprintf(securityLogSinkName),
-		Project: pulumi.String(config.Project),
-
-		// Security-focused log filter
-		Filter: pulumi.String(`(
-			protoPayload.serviceName="iam.googleapis.com" OR
-			protoPayload.serviceName="serviceusage.googleapis.com" OR
-			protoPayload.serviceName="orgpolicy.googleapis.com" OR
-			(protoPayload.serviceName="compute.googleapis.com" AND
-				(protoPayload.methodName:"firewall" OR protoPayload.methodName:"route"))
-		) OR
-		severity="ERROR" OR severity="CRITICAL" OR
-		jsonPayload.incident_id!="" OR
-		jsonPayload.finding_id!="" OR
-		resource.type="gce_firewall_rule" OR
-		resource.type="vpc_flow_log"`),
-
-		Destination: securityLogsStorage.LogsBucket.Name.ApplyT(func(name string) string {
-			return fmt.Sprintf("storage.googleapis.com/%s", name)
-		}).(pulumi.StringOutput),
-
-		// Enable unique writer identity for security
-		UniqueWriterIdentity: pulumi.Bool(true),
-	}, pulumi.Parent(b), pulumi.DependsOn([]pulumi.Resource{securityLogsStorage.LogsBucket}))
-	if err != nil {
-		return nil, nil, fmt.Errorf("failed to create security log sink: %w", err)
-	}
-
-	securityLogsStorage.LogSink = securityLogSink
-
-	return auditLogsStorage, securityLogsStorage, nil
+	return auditLogSink, nil
 }
 
 func (b *Bootstrap) createSecurityLogsBucket(config *BootstrapArgs, ctx *pulumi.Context) (*LoggingSinkBucket, error) {
