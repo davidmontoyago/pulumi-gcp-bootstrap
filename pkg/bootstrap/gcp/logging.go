@@ -293,7 +293,10 @@ func newLoggingBucketDefaultArgs(bucketName string, config *BootstrapArgs, bucke
 				},
 			},
 		},
+
 		Labels: mapToStringMapInput(bucketLabels),
+
+		ForceDestroy: pulumi.Bool(config.ForceDestroy),
 	}
 	return auditLogsBucketArgs
 }

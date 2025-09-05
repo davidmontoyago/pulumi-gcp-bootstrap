@@ -34,4 +34,8 @@ type BootstrapArgs struct {
 
 	// Labels to be applied to the resources
 	Labels map[string]string
+
+	// Force destroy the state bucket and logs bucket
+	// Enable only to decommission a project environment
+	ForceDestroy bool
 }

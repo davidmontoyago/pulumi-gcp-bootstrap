@@ -6,7 +6,7 @@ Day 1 infra for GCP:
 
 - **State Bucket** for Pulumi state and Terraform state files
 - **Audit Logging** with security and audit log sinks, lifecycle and default retention
-- **Organization Policies** to require HTTPS, restrict public bucket access, uniform level access, etc
+- **Organization Policies** to require HTTPS, restrict public bucket access, ensure uniform level access, etc
 - **IAM Policies** access controls for admin personas
 - Optional **customer-managed KMS keys** for bucket state and logging encryption
 

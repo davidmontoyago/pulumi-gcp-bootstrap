@@ -31,9 +31,8 @@ func NewBootstrap(ctx *pulumi.Context, name string, args *BootstrapArgs, opts ..
 
 	// Default labels
 	defaultLabels := map[string]string{
-		"environment": "bootstrap",
-		"managed-by":  "pulumi",
-		"component":   "bootstrap",
+		"environment": name,
+		"managed-by":  "pulumi-gcp-bootstrap",
 	}
 
 	// Merge with provided labels

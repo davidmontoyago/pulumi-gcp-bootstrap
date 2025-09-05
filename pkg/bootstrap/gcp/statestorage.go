@@ -65,6 +65,8 @@ func (b *Bootstrap) createSecureStateBucket(ctx *pulumi.Context, config *Bootstr
 		},
 
 		Labels: mapToStringMapInput(stateBucketLabels),
+
+		ForceDestroy: pulumi.Bool(config.ForceDestroy),
 	}
 
 	// Prepare response
