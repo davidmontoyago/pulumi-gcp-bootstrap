@@ -7,8 +7,12 @@ import (
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 )
 
-// setupSecurityPolicies creates project-level organization policy constraints for security
-func (b *Bootstrap) setupSecurityPolicies(ctx *pulumi.Context, config *BootstrapArgs) ([]*projects.OrganizationPolicy, error) {
+// setupOrgSecurityPolicies creates project-level organization policy constraints for security
+func (b *Bootstrap) setupOrgSecurityPolicies(ctx *pulumi.Context, config *BootstrapArgs) ([]*projects.OrganizationPolicy, error) {
+	if !config.EnableOrganizationPolicies {
+		return nil, nil
+	}
+
 	var orgPolicies []*projects.OrganizationPolicy
 
 	// Require uniform bucket-level access
@@ -58,7 +62,6 @@ func (b *Bootstrap) setupSecurityPolicies(ctx *pulumi.Context, config *Bootstrap
 		Project:    pulumi.String(config.Project),
 		Constraint: pulumi.String("iam.disableServiceAccountKeyCreation"),
 		BooleanPolicy: &projects.OrganizationPolicyBooleanPolicyArgs{
-			// TODO make me configurable
 			Enforced: pulumi.Bool(true),
 		},
 	}, pulumi.Parent(b))

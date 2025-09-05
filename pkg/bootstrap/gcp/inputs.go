@@ -22,6 +22,11 @@ type BootstrapArgs struct {
 	// Enable for compliance and audit purposes in production environments.
 	EnableCustomerManagedEncryption bool
 
+	// Whether to enable organization policies.
+	// Requires an Organization setup in GCP and role roles/orgpolicy.policyAdmin
+	// See: https://cloud.google.com/resource-manager/docs/organization-policy/overview
+	EnableOrganizationPolicies bool
+
 	// List of member groups are allowed to administer the infrastructure
 	AdminMembers []string
 	// List of member groups are allowed to audit the infrastructure as security admins

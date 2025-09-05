@@ -13,7 +13,7 @@ func TestNewBootstrap_DefaultConfiguration(t *testing.T) {
 	t.Parallel()
 
 	err := pulumi.RunErr(func(ctx *pulumi.Context) error {
-		// Default test args
+		// Default test args (organization policies enabled by default for backward compatibility)
 		args := &BootstrapArgs{
 			Project:                                 "test-project",
 			Region:                                  "us-central1",
@@ -23,6 +23,7 @@ func TestNewBootstrap_DefaultConfiguration(t *testing.T) {
 			LoggingRetentionDays:                    365,
 			AdminMembers:                            []string{"admin-group@example.com"},
 			SecurityMembers:                         []string{"security-group@example.com"},
+			EnableOrganizationPolicies:              true, // Default to enabled for this test
 			Labels: map[string]string{
 				"environment": "test",
 				"team":        "bootstrap",
@@ -243,11 +244,6 @@ func TestNewBootstrap_WithCustomerManagedKeys(t *testing.T) {
 		assert.NotEmpty(t, auditLogsKeyID, "Audit logs bucket should have a KMS key ID")
 		assert.NotEmpty(t, securityLogsKeyID, "Security logs bucket should have a KMS key ID")
 
-		// Verify organization policies and IAM bindings are still created
-		orgPolicies := bootstrap.GetOrganizationPolicies()
-		require.NotNil(t, orgPolicies, "Organization policies should not be nil")
-		assert.Equal(t, 4, len(orgPolicies), "Should have exactly 4 organization policies")
-
 		stateBucketBindings := bootstrap.GetStateBucketBindings()
 		require.NotNil(t, stateBucketBindings, "State bucket bindings should not be nil")
 		assert.Equal(t, 8, len(stateBucketBindings), "Should have 8 IAM bindings")
@@ -303,6 +299,111 @@ func TestNewBootstrap_WithoutCustomerManagedKeys(t *testing.T) {
 		require.NotNil(t, loggingComponents.SecurityLogsBucket, "Security logs bucket should not be nil")
 		assert.Nil(t, loggingComponents.SecurityLogsKeyRing, "Security logs KMS KeyRing should be nil when encryption disabled")
 		assert.Nil(t, loggingComponents.SecurityLogsCryptoKey, "Security logs KMS CryptoKey should be nil when encryption disabled")
+
+		return nil
+	}, pulumi.WithMocks("project", "stack", &testMocks{}))
+
+	if err != nil {
+		t.Fatalf("Pulumi WithMocks failed: %v", err)
+	}
+}
+
+func TestNewBootstrap_WithOrganizationPolicies(t *testing.T) {
+	t.Parallel()
+
+	err := pulumi.RunErr(func(ctx *pulumi.Context) error {
+		// Test args with organization policies enabled
+		args := &BootstrapArgs{
+			Project:                                 "test-project",
+			Region:                                  "us-central1",
+			StateBucketKeyRotationPeriod:            "7776000s", // 90 days
+			StateBucketArchivedObjectsRetentionDays: 7,
+			LoggingDestinationProject:               "test-logging-project",
+			LoggingRetentionDays:                    365,
+			AdminMembers:                            []string{"admin-group@example.com"},
+			SecurityMembers:                         []string{"security-group@example.com"},
+			EnableOrganizationPolicies:              true, // Enable organization policies
+			Labels: map[string]string{
+				"environment": "test",
+				"team":        "bootstrap",
+			},
+		}
+
+		bootstrap, err := NewBootstrap(ctx, "test-bootstrap", args)
+		require.NoError(t, err)
+
+		// Verify organization policies are created when enabled
+		orgPolicies := bootstrap.GetOrganizationPolicies()
+		require.NotNil(t, orgPolicies, "Organization policies should not be nil when enabled")
+		// 1. storage.uniformBucketLevelAccess
+		// 2. storage.publicAccessPrevention
+		// 3. storage.secureHttpTransport
+		// 4. iam.disableServiceAccountKeyCreation
+		assert.Equal(t, 4, len(orgPolicies), "Should have exactly 4 organization policies when enabled")
+
+		// Verify other components are still created
+		storageComponents := bootstrap.GetStorageComponents()
+		require.NotNil(t, storageComponents, "Storage components should not be nil")
+		require.NotNil(t, storageComponents.StateBucket, "State bucket should not be nil")
+
+		loggingComponents := bootstrap.GetLoggingComponents()
+		require.NotNil(t, loggingComponents, "Logging components should not be nil")
+		require.NotNil(t, loggingComponents.AuditLogsBucket, "Audit logs bucket should not be nil")
+		require.NotNil(t, loggingComponents.SecurityLogsBucket, "Security logs bucket should not be nil")
+
+		stateBucketBindings := bootstrap.GetStateBucketBindings()
+		require.NotNil(t, stateBucketBindings, "State bucket bindings should not be nil")
+		assert.Equal(t, 8, len(stateBucketBindings), "Should have 8 IAM bindings")
+
+		return nil
+	}, pulumi.WithMocks("project", "stack", &testMocks{}))
+
+	if err != nil {
+		t.Fatalf("Pulumi WithMocks failed: %v", err)
+	}
+}
+
+func TestNewBootstrap_WithoutOrganizationPolicies(t *testing.T) {
+	t.Parallel()
+
+	err := pulumi.RunErr(func(ctx *pulumi.Context) error {
+		// Test args with organization policies disabled (default)
+		args := &BootstrapArgs{
+			Project:                                 "test-project",
+			Region:                                  "us-central1",
+			StateBucketKeyRotationPeriod:            "7776000s", // 90 days
+			StateBucketArchivedObjectsRetentionDays: 7,
+			LoggingDestinationProject:               "test-logging-project",
+			LoggingRetentionDays:                    365,
+			AdminMembers:                            []string{"admin-group@example.com"},
+			SecurityMembers:                         []string{"security-group@example.com"},
+			EnableOrganizationPolicies:              false, // Disable organization policies
+			Labels: map[string]string{
+				"environment": "test",
+				"team":        "bootstrap",
+			},
+		}
+
+		bootstrap, err := NewBootstrap(ctx, "test-bootstrap", args)
+		require.NoError(t, err)
+
+		// Verify organization policies are NOT created when disabled
+		orgPolicies := bootstrap.GetOrganizationPolicies()
+		assert.Nil(t, orgPolicies, "Organization policies should be nil when disabled")
+
+		// Verify other components are still created
+		storageComponents := bootstrap.GetStorageComponents()
+		require.NotNil(t, storageComponents, "Storage components should not be nil")
+		require.NotNil(t, storageComponents.StateBucket, "State bucket should not be nil")
+
+		loggingComponents := bootstrap.GetLoggingComponents()
+		require.NotNil(t, loggingComponents, "Logging components should not be nil")
+		require.NotNil(t, loggingComponents.AuditLogsBucket, "Audit logs bucket should not be nil")
+		require.NotNil(t, loggingComponents.SecurityLogsBucket, "Security logs bucket should not be nil")
+
+		stateBucketBindings := bootstrap.GetStateBucketBindings()
+		require.NotNil(t, stateBucketBindings, "State bucket bindings should not be nil")
+		assert.Equal(t, 8, len(stateBucketBindings), "Should have 8 IAM bindings")
 
 		return nil
 	}, pulumi.WithMocks("project", "stack", &testMocks{}))

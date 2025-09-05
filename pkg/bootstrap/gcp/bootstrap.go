@@ -91,7 +91,7 @@ func (b *Bootstrap) deploy(ctx *pulumi.Context, args *BootstrapArgs) error {
 	}
 	b.storage.stateBucketBindings = bucketBindings
 
-	policies, err := b.setupSecurityPolicies(ctx, args)
+	policies, err := b.setupOrgSecurityPolicies(ctx, args)
 	if err != nil {
 		return fmt.Errorf("failed to create org security policies: %w", err)
 	}

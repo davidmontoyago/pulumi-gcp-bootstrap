@@ -1,19 +1,33 @@
-# Pulumi GCP Bootstrap
+# pulumi-gcp-bootstrap
 
 [![Develop](https://github.com/davidmontoyago/pulumi-gcp-bootstrap/actions/workflows/develop.yaml/badge.svg)](https://github.com/davidmontoyago/pulumi-gcp-bootstrap/actions/workflows/develop.yaml) [![Go Coverage](https://raw.githubusercontent.com/wiki/davidmontoyago/pulumi-gcp-bootstrap/coverage.svg)](https://raw.githack.com/wiki/davidmontoyago/pulumi-gcp-bootstrap/coverage.html) [![Go Reference](https://pkg.go.dev/badge/github.com/davidmontoyago/pulumi-gcp-bootstrap.svg)](https://pkg.go.dev/github.com/davidmontoyago/pulumi-gcp-bootstrap)
 
-Day 1 infra for GCP.
+Day 1 infra for GCP:
 
-- **State Buckets** for Pulumi state and Terraform state files
+- **State Bucket** for Pulumi state and Terraform state files
 - **Audit Logging** with security and audit log sinks, lifecycle and default retention
 - **Organization Policies** to require HTTPS, restrict public bucket access, uniform level access, etc
-- **IAM Policies** access controls for personas `infrastructure-team`, `security-team`, `compliance-team`, `soc-team`
+- **IAM Policies** access controls for admin personas
+- Optional **customer-managed KMS keys** for bucket state and logging encryption
+
+### Basic config
+
+```go
+bootstrap, err := gcp.NewBootstrap(ctx, "my-apps-project", &gcp.BootstrapArgs{
+  Project: c.Project,
+  Region:  c.Region,
+})
+if err != nil {
+  return fmt.Errorf("failed to bootstrap project: %w", err)
+}
+```
 
 ## Prerequisites
 
 1. [Go 1.24+](https://golang.org/dl/)
 2. [Pulumi CLI](https://pulumi.io/quickstart/install.html)
 3. [gcloud CLI](https://cloud.google.com/sdk/gcloud/) configured with appropriate permissions
+4. A GCP project
 
 ## Quick Start
 
