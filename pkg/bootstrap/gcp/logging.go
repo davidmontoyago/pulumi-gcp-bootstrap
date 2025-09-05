@@ -12,10 +12,11 @@ import (
 
 // LoggingSinkBucket is a bucket for a logging sink
 type LoggingSinkBucket struct {
-	LogsBucket    *storage.Bucket
-	LogsKeyRing   *kms.KeyRing
-	LogsCryptoKey *kms.CryptoKey
-	LogSink       *logging.ProjectSink
+	LogsBucket            *storage.Bucket
+	LogsKeyRing           *kms.KeyRing
+	LogsCryptoKey         *kms.CryptoKey
+	LogSink               *logging.ProjectSink
+	LogsBucketIAMBindings []*storage.BucketIAMMember
 }
 
 // createSecureLoggingSinks creates secure logging infrastructure with best practices
@@ -36,7 +37,6 @@ func (b *Bootstrap) createSecureLoggingSinks(ctx *pulumi.Context, config *Bootst
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to create audit log sink: %w", err)
 	}
-
 	auditLogsStorage.LogSink = auditLogSink
 
 	// Create security log sink for security-related events
@@ -44,10 +44,49 @@ func (b *Bootstrap) createSecureLoggingSinks(ctx *pulumi.Context, config *Bootst
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to create security log sink: %w", err)
 	}
-
 	securityLogsStorage.LogSink = securityLogSink
 
+	// Grant the sink permissions to use the bucket
+	auditSinkIAMBindings, err := b.createSinkIAMBindings(ctx, "audit-logs", auditLogsStorage)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to grant audit log sink bucket read permissions: %w", err)
+	}
+	auditLogsStorage.LogsBucketIAMBindings = auditSinkIAMBindings
+
+	securitySinkIAMBindings, err := b.createSinkIAMBindings(ctx, "security-logs", securityLogsStorage)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to grant security log sink bucket read permissions: %w", err)
+	}
+	securityLogsStorage.LogsBucketIAMBindings = securitySinkIAMBindings
+
 	return auditLogsStorage, securityLogsStorage, nil
+}
+
+func (b *Bootstrap) createSinkIAMBindings(ctx *pulumi.Context, purpose string, loggingStorage *LoggingSinkBucket) ([]*storage.BucketIAMMember, error) {
+	iamBindings := []*storage.BucketIAMMember{}
+
+	objectWrite, err := storage.NewBucketIAMMember(ctx, b.NewResourceName(fmt.Sprintf("%s-sink-object-write", purpose), "iam-member", 63), &storage.BucketIAMMemberArgs{
+		Bucket: loggingStorage.LogsBucket.Name,
+		Role:   pulumi.String("roles/storage.objectCreator"),
+		Member: loggingStorage.LogSink.WriterIdentity,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to grant audit log sink object write permissions: %w", err)
+	}
+	iamBindings = append(iamBindings, objectWrite)
+
+	// Grant bucket metadata reading permissions (required for sinks)
+	bucketRead, err := storage.NewBucketIAMMember(ctx, b.NewResourceName(fmt.Sprintf("%s-sink-bucket-read", purpose), "iam-member", 63), &storage.BucketIAMMemberArgs{
+		Bucket: loggingStorage.LogsBucket.Name,
+		Role:   pulumi.String("roles/storage.bucketViewer"),
+		Member: loggingStorage.LogSink.WriterIdentity,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to grant audit log sink bucket read permissions: %w", err)
+	}
+	iamBindings = append(iamBindings, bucketRead)
+
+	return iamBindings, nil
 }
 
 func (b *Bootstrap) createSecurityLogsSink(ctx *pulumi.Context, config *BootstrapArgs, securityLogsBucket *storage.Bucket) (*logging.ProjectSink, error) {

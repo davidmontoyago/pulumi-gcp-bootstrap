@@ -427,3 +427,168 @@ func TestNewBootstrap_WithoutOrganizationPolicies(t *testing.T) {
 		t.Fatalf("Pulumi WithMocks failed: %v", err)
 	}
 }
+
+func TestNewBootstrap_EnsureSinkBucketRequiredIAM(t *testing.T) {
+	t.Parallel()
+
+	err := pulumi.RunErr(func(ctx *pulumi.Context) error {
+		// Test args to ensure sink IAM bindings are created
+		args := &BootstrapArgs{
+			Project:                                 "test-project",
+			Region:                                  "us-central1",
+			StateBucketKeyRotationPeriod:            "7776000s", // 90 days
+			StateBucketArchivedObjectsRetentionDays: 7,
+			LoggingDestinationProject:               "test-logging-project",
+			LoggingRetentionDays:                    365,
+			AdminMembers:                            []string{"admin-group@example.com"},
+			SecurityMembers:                         []string{"security-group@example.com"},
+			EnableCustomerManagedEncryption:         false,
+			EnableOrganizationPolicies:              false,
+			Labels: map[string]string{
+				"environment": "test",
+				"team":        "bootstrap",
+			},
+		}
+
+		bootstrap, err := NewBootstrap(ctx, "test-bootstrap", args)
+		require.NoError(t, err)
+
+		// Test audit logs bucket IAM bindings
+		auditLoggingComponents := bootstrap.GetAuditLogsSinkBucket()
+		require.NotNil(t, auditLoggingComponents, "Audit logging components should not be nil")
+		require.NotNil(t, auditLoggingComponents.LogsBucket, "Audit logs bucket should not be nil")
+		require.NotNil(t, auditLoggingComponents.LogSink, "Audit log sink should not be nil")
+		require.NotNil(t, auditLoggingComponents.LogsBucketIAMBindings, "Audit logs bucket IAM bindings should not be nil")
+
+		// Should have exactly 2 IAM bindings: objectCreator and bucketViewer
+		assert.Equal(t, 2, len(auditLoggingComponents.LogsBucketIAMBindings), "Audit logs bucket should have exactly 2 IAM bindings")
+
+		// Verify each IAM binding has the correct sink writer identity and bucket
+		for _, binding := range auditLoggingComponents.LogsBucketIAMBindings {
+			require.NotNil(t, binding, "IAM binding should not be nil")
+
+			// Extract values using channels for async pattern
+			memberCh := make(chan string, 1)
+			bucketCh := make(chan string, 1)
+			roleCh := make(chan string, 1)
+
+			binding.Member.ApplyT(func(member string) error {
+				memberCh <- member
+				return nil
+			})
+			binding.Bucket.ApplyT(func(bucket string) error {
+				bucketCh <- bucket
+				return nil
+			})
+			binding.Role.ApplyT(func(role string) error {
+				roleCh <- role
+				return nil
+			})
+
+			member := <-memberCh
+			bucket := <-bucketCh
+			role := <-roleCh
+
+			close(memberCh)
+			close(bucketCh)
+			close(roleCh)
+
+			// Verify the member is the sink's writer identity
+			auditSinkWriterIdentityCh := make(chan string, 1)
+			auditLoggingComponents.LogSink.WriterIdentity.ApplyT(func(identity string) error {
+				auditSinkWriterIdentityCh <- identity
+				return nil
+			})
+			expectedMember := <-auditSinkWriterIdentityCh
+			close(auditSinkWriterIdentityCh)
+
+			assert.Equal(t, expectedMember, member, "IAM binding member should be the sink's writer identity")
+
+			// Verify the bucket name matches
+			auditBucketNameCh := make(chan string, 1)
+			auditLoggingComponents.LogsBucket.Name.ApplyT(func(name string) error {
+				auditBucketNameCh <- name
+				return nil
+			})
+			expectedBucket := <-auditBucketNameCh
+			close(auditBucketNameCh)
+
+			assert.Equal(t, expectedBucket, bucket, "IAM binding bucket should match the logs bucket name")
+
+			// Verify the role is one of the expected roles
+			assert.Contains(t, []string{"roles/storage.objectCreator", "roles/storage.bucketViewer"}, role, "IAM binding role should be either objectCreator or bucketViewer")
+		}
+
+		// Test security logs bucket IAM bindings
+		securityLoggingComponents := bootstrap.GetSecurityLogsSinkBucket()
+		require.NotNil(t, securityLoggingComponents, "Security logging components should not be nil")
+		require.NotNil(t, securityLoggingComponents.LogsBucket, "Security logs bucket should not be nil")
+		require.NotNil(t, securityLoggingComponents.LogSink, "Security log sink should not be nil")
+		require.NotNil(t, securityLoggingComponents.LogsBucketIAMBindings, "Security logs bucket IAM bindings should not be nil")
+
+		// Should have exactly 2 IAM bindings: objectCreator and bucketViewer
+		assert.Equal(t, 2, len(securityLoggingComponents.LogsBucketIAMBindings), "Security logs bucket should have exactly 2 IAM bindings")
+
+		// Verify each IAM binding has the correct sink writer identity and bucket
+		for _, binding := range securityLoggingComponents.LogsBucketIAMBindings {
+			require.NotNil(t, binding, "IAM binding should not be nil")
+
+			// Extract values using channels for async pattern
+			memberCh := make(chan string, 1)
+			bucketCh := make(chan string, 1)
+			roleCh := make(chan string, 1)
+
+			binding.Member.ApplyT(func(member string) error {
+				memberCh <- member
+				return nil
+			})
+			binding.Bucket.ApplyT(func(bucket string) error {
+				bucketCh <- bucket
+				return nil
+			})
+			binding.Role.ApplyT(func(role string) error {
+				roleCh <- role
+				return nil
+			})
+
+			member := <-memberCh
+			bucket := <-bucketCh
+			role := <-roleCh
+
+			close(memberCh)
+			close(bucketCh)
+			close(roleCh)
+
+			// Verify the member is the sink's writer identity
+			securitySinkWriterIdentityCh := make(chan string, 1)
+			securityLoggingComponents.LogSink.WriterIdentity.ApplyT(func(identity string) error {
+				securitySinkWriterIdentityCh <- identity
+				return nil
+			})
+			expectedMember := <-securitySinkWriterIdentityCh
+			close(securitySinkWriterIdentityCh)
+
+			assert.Equal(t, expectedMember, member, "IAM binding member should be the sink's writer identity")
+
+			// Verify the bucket name matches
+			securityBucketNameCh := make(chan string, 1)
+			securityLoggingComponents.LogsBucket.Name.ApplyT(func(name string) error {
+				securityBucketNameCh <- name
+				return nil
+			})
+			expectedBucket := <-securityBucketNameCh
+			close(securityBucketNameCh)
+
+			assert.Equal(t, expectedBucket, bucket, "IAM binding bucket should match the logs bucket name")
+
+			// Verify the role is one of the expected roles
+			assert.Contains(t, []string{"roles/storage.objectCreator", "roles/storage.bucketViewer"}, role, "IAM binding role should be either objectCreator or bucketViewer")
+		}
+
+		return nil
+	}, pulumi.WithMocks("project", "stack", &testMocks{}))
+
+	if err != nil {
+		t.Fatalf("Pulumi WithMocks failed: %v", err)
+	}
+}
