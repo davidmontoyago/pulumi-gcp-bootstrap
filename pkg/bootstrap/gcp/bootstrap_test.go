@@ -23,6 +23,7 @@ func TestNewBootstrap_DefaultConfiguration(t *testing.T) {
 			LoggingRetentionDays:                    365,
 			AdminMembers:                            []string{"admin-group@example.com"},
 			SecurityMembers:                         []string{"security-group@example.com"},
+			EnableCustomerManagedEncryption:         false,
 			EnableOrganizationPolicies:              true, // Default to enabled for this test
 			Labels: map[string]string{
 				"environment": "test",
@@ -88,12 +89,15 @@ func TestNewBootstrap_DefaultConfiguration(t *testing.T) {
 		require.NotNil(t, storageComponents.StateBucket, "State bucket should not be nil")
 
 		// Verify logging components
-		loggingComponents := bootstrap.GetLoggingComponents()
+		loggingComponents := bootstrap.GetAuditLogsSinkBucket()
 		require.NotNil(t, loggingComponents, "Logging components should not be nil")
-		require.NotNil(t, loggingComponents.AuditLogsBucket, "Audit logs bucket should not be nil")
-		require.NotNil(t, loggingComponents.SecurityLogsBucket, "Security logs bucket should not be nil")
-		require.NotNil(t, loggingComponents.AuditLogSink, "Audit log sink should not be nil")
-		require.NotNil(t, loggingComponents.SecurityLogSink, "Security log sink should not be nil")
+		require.NotNil(t, loggingComponents.LogsBucket, "Audit logs bucket should not be nil")
+		require.NotNil(t, loggingComponents.LogSink, "Audit log sink should not be nil")
+
+		loggingComponents = bootstrap.GetSecurityLogsSinkBucket()
+		require.NotNil(t, loggingComponents, "Logging components should not be nil")
+		require.NotNil(t, loggingComponents.LogsBucket, "Security logs bucket should not be nil")
+		require.NotNil(t, loggingComponents.LogSink, "Security log sink should not be nil")
 
 		// Verify organization policies
 		orgPolicies := bootstrap.GetOrganizationPolicies()
@@ -195,23 +199,41 @@ func TestNewBootstrap_WithCustomerManagedKeys(t *testing.T) {
 		require.NotNil(t, storageComponents.CryptoKey, "State bucket KMS CryptoKey should not be nil")
 		require.NotNil(t, storageComponents.StateBucket, "State bucket should not be nil")
 
-		// Verify logging components have KMS resources for both buckets
-		loggingComponents := bootstrap.GetLoggingComponents()
-		require.NotNil(t, loggingComponents, "Logging components should not be nil")
+		// -- Verify logging components have KMS resources for both buckets --
 
 		// Audit logs bucket and its KMS resources
-		require.NotNil(t, loggingComponents.AuditLogsBucket, "Audit logs bucket should not be nil")
-		require.NotNil(t, loggingComponents.AuditLogsKeyRing, "Audit logs KMS KeyRing should not be nil")
-		require.NotNil(t, loggingComponents.AuditLogsCryptoKey, "Audit logs KMS CryptoKey should not be nil")
+		loggingComponents := bootstrap.GetAuditLogsSinkBucket()
+		require.NotNil(t, loggingComponents, "Logging components should not be nil")
+		require.NotNil(t, loggingComponents.LogsBucket, "Audit logs bucket should not be nil")
+		require.NotNil(t, loggingComponents.LogsKeyRing, "Audit logs KMS KeyRing should not be nil")
+		require.NotNil(t, loggingComponents.LogsCryptoKey, "Audit logs KMS CryptoKey should not be nil")
+		require.NotNil(t, loggingComponents.LogSink, "Audit log sink should not be nil")
+
+		auditLogsKeyIDCh := make(chan string, 1)
+		defer close(auditLogsKeyIDCh)
+		loggingComponents.LogsCryptoKey.ID().ApplyT(func(keyID string) error {
+			auditLogsKeyIDCh <- keyID
+			return nil
+		})
+		auditLogsKeyID := <-auditLogsKeyIDCh
+		assert.NotEmpty(t, auditLogsKeyID, "Audit logs bucket should have a KMS key ID")
 
 		// Security logs bucket and its KMS resources
-		require.NotNil(t, loggingComponents.SecurityLogsBucket, "Security logs bucket should not be nil")
-		require.NotNil(t, loggingComponents.SecurityLogsKeyRing, "Security logs KMS KeyRing should not be nil")
-		require.NotNil(t, loggingComponents.SecurityLogsCryptoKey, "Security logs KMS CryptoKey should not be nil")
+		loggingComponents = bootstrap.GetSecurityLogsSinkBucket()
+		require.NotNil(t, loggingComponents, "Logging components should not be nil")
+		require.NotNil(t, loggingComponents.LogsBucket, "Security logs bucket should not be nil")
+		require.NotNil(t, loggingComponents.LogsKeyRing, "Security logs KMS KeyRing should not be nil")
+		require.NotNil(t, loggingComponents.LogsCryptoKey, "Security logs KMS CryptoKey should not be nil")
+		require.NotNil(t, loggingComponents.LogSink, "Security log sink should not be nil")
 
-		// Verify sinks are still created
-		require.NotNil(t, loggingComponents.AuditLogSink, "Audit log sink should not be nil")
-		require.NotNil(t, loggingComponents.SecurityLogSink, "Security log sink should not be nil")
+		securityLogsKeyIDCh := make(chan string, 1)
+		defer close(securityLogsKeyIDCh)
+		loggingComponents.LogsCryptoKey.ID().ApplyT(func(keyID string) error {
+			securityLogsKeyIDCh <- keyID
+			return nil
+		})
+		securityLogsKeyID := <-securityLogsKeyIDCh
+		assert.NotEmpty(t, securityLogsKeyID, "Security logs bucket should have a KMS key ID")
 
 		// Verify that all three buckets have their own dedicated KMS keys
 		// by checking that the key IDs are different for each bucket
@@ -223,26 +245,8 @@ func TestNewBootstrap_WithCustomerManagedKeys(t *testing.T) {
 		})
 		stateBucketKeyID := <-stateBucketKeyIDCh
 
-		auditLogsKeyIDCh := make(chan string, 1)
-		defer close(auditLogsKeyIDCh)
-		loggingComponents.AuditLogsCryptoKey.ID().ApplyT(func(keyID string) error {
-			auditLogsKeyIDCh <- keyID
-			return nil
-		})
-		auditLogsKeyID := <-auditLogsKeyIDCh
-
-		securityLogsKeyIDCh := make(chan string, 1)
-		defer close(securityLogsKeyIDCh)
-		loggingComponents.SecurityLogsCryptoKey.ID().ApplyT(func(keyID string) error {
-			securityLogsKeyIDCh <- keyID
-			return nil
-		})
-		securityLogsKeyID := <-securityLogsKeyIDCh
-
 		// Each bucket should have its own dedicated KMS key
 		assert.NotEmpty(t, stateBucketKeyID, "State bucket should have a KMS key ID")
-		assert.NotEmpty(t, auditLogsKeyID, "Audit logs bucket should have a KMS key ID")
-		assert.NotEmpty(t, securityLogsKeyID, "Security logs bucket should have a KMS key ID")
 
 		stateBucketBindings := bootstrap.GetStateBucketBindings()
 		require.NotNil(t, stateBucketBindings, "State bucket bindings should not be nil")
@@ -288,17 +292,18 @@ func TestNewBootstrap_WithoutCustomerManagedKeys(t *testing.T) {
 		require.NotNil(t, storageComponents.StateBucket, "State bucket should still exist")
 
 		// Verify logging components do NOT have KMS resources when disabled
-		loggingComponents := bootstrap.GetLoggingComponents()
-		require.NotNil(t, loggingComponents, "Logging components should not be nil")
-
+		loggingComponents := bootstrap.GetAuditLogsSinkBucket()
+		require.NotNil(t, loggingComponents, "Audit logging components should not be nil")
 		// Buckets should exist but without KMS resources
-		require.NotNil(t, loggingComponents.AuditLogsBucket, "Audit logs bucket should not be nil")
-		assert.Nil(t, loggingComponents.AuditLogsKeyRing, "Audit logs KMS KeyRing should be nil when encryption disabled")
-		assert.Nil(t, loggingComponents.AuditLogsCryptoKey, "Audit logs KMS CryptoKey should be nil when encryption disabled")
+		require.NotNil(t, loggingComponents.LogsBucket, "Audit logs bucket should not be nil")
+		assert.Nil(t, loggingComponents.LogsKeyRing, "Audit logs KMS KeyRing should be nil when encryption disabled")
+		assert.Nil(t, loggingComponents.LogsCryptoKey, "Audit logs KMS CryptoKey should be nil when encryption disabled")
 
-		require.NotNil(t, loggingComponents.SecurityLogsBucket, "Security logs bucket should not be nil")
-		assert.Nil(t, loggingComponents.SecurityLogsKeyRing, "Security logs KMS KeyRing should be nil when encryption disabled")
-		assert.Nil(t, loggingComponents.SecurityLogsCryptoKey, "Security logs KMS CryptoKey should be nil when encryption disabled")
+		loggingComponents = bootstrap.GetSecurityLogsSinkBucket()
+		require.NotNil(t, loggingComponents, "Security logging components should not be nil")
+		require.NotNil(t, loggingComponents.LogsBucket, "Security logs bucket should not be nil")
+		assert.Nil(t, loggingComponents.LogsKeyRing, "Security logs KMS KeyRing should be nil when encryption disabled")
+		assert.Nil(t, loggingComponents.LogsCryptoKey, "Security logs KMS CryptoKey should be nil when encryption disabled")
 
 		return nil
 	}, pulumi.WithMocks("project", "stack", &testMocks{}))
@@ -346,10 +351,15 @@ func TestNewBootstrap_WithOrganizationPolicies(t *testing.T) {
 		require.NotNil(t, storageComponents, "Storage components should not be nil")
 		require.NotNil(t, storageComponents.StateBucket, "State bucket should not be nil")
 
-		loggingComponents := bootstrap.GetLoggingComponents()
+		loggingComponents := bootstrap.GetAuditLogsSinkBucket()
 		require.NotNil(t, loggingComponents, "Logging components should not be nil")
-		require.NotNil(t, loggingComponents.AuditLogsBucket, "Audit logs bucket should not be nil")
-		require.NotNil(t, loggingComponents.SecurityLogsBucket, "Security logs bucket should not be nil")
+		require.NotNil(t, loggingComponents.LogsBucket, "Audit logs bucket should not be nil")
+		require.NotNil(t, loggingComponents.LogSink, "Audit log sink should not be nil")
+
+		loggingComponents = bootstrap.GetSecurityLogsSinkBucket()
+		require.NotNil(t, loggingComponents, "Security logging components should not be nil")
+		require.NotNil(t, loggingComponents.LogsBucket, "Security logs bucket should not be nil")
+		require.NotNil(t, loggingComponents.LogSink, "Security log sink should not be nil")
 
 		stateBucketBindings := bootstrap.GetStateBucketBindings()
 		require.NotNil(t, stateBucketBindings, "State bucket bindings should not be nil")
@@ -396,10 +406,15 @@ func TestNewBootstrap_WithoutOrganizationPolicies(t *testing.T) {
 		require.NotNil(t, storageComponents, "Storage components should not be nil")
 		require.NotNil(t, storageComponents.StateBucket, "State bucket should not be nil")
 
-		loggingComponents := bootstrap.GetLoggingComponents()
+		loggingComponents := bootstrap.GetAuditLogsSinkBucket()
 		require.NotNil(t, loggingComponents, "Logging components should not be nil")
-		require.NotNil(t, loggingComponents.AuditLogsBucket, "Audit logs bucket should not be nil")
-		require.NotNil(t, loggingComponents.SecurityLogsBucket, "Security logs bucket should not be nil")
+		require.NotNil(t, loggingComponents.LogsBucket, "Audit logs bucket should not be nil")
+		require.NotNil(t, loggingComponents.LogSink, "Audit log sink should not be nil")
+
+		loggingComponents = bootstrap.GetSecurityLogsSinkBucket()
+		require.NotNil(t, loggingComponents, "Security logging components should not be nil")
+		require.NotNil(t, loggingComponents.LogsBucket, "Security logs bucket should not be nil")
+		require.NotNil(t, loggingComponents.LogSink, "Security log sink should not be nil")
 
 		stateBucketBindings := bootstrap.GetStateBucketBindings()
 		require.NotNil(t, stateBucketBindings, "State bucket bindings should not be nil")

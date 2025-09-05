@@ -114,10 +114,10 @@ func (b *Bootstrap) setupIAMBindingsForStateBucket(ctx *pulumi.Context, config *
 			memberName := b.NewResourceName(fmt.Sprintf("audit-logs-admin-%s", adminGroup), "iam-member", 63)
 			auditLogAdminMember, err := storage.NewBucketIAMMember(ctx, memberName, &storage.BucketIAMMemberArgs{
 				// Audit logs bucket
-				Bucket: b.logging.AuditLogsBucket.Name,
+				Bucket: b.auditLogs.LogsBucket.Name,
 				Role:   pulumi.String(role),
 				Member: pulumi.String(adminGroupMember),
-			}, pulumi.Parent(b), pulumi.DependsOn([]pulumi.Resource{b.logging.AuditLogsBucket}))
+			}, pulumi.Parent(b), pulumi.DependsOn([]pulumi.Resource{b.auditLogs.LogsBucket}))
 			if err != nil {
 				return nil, fmt.Errorf("failed to create audit logs admin IAM member for group %s: %w", adminGroup, err)
 			}
@@ -126,10 +126,10 @@ func (b *Bootstrap) setupIAMBindingsForStateBucket(ctx *pulumi.Context, config *
 			memberName = b.NewResourceName(fmt.Sprintf("security-logs-admin-%s", adminGroup), "iam-member", 63)
 			securityLogAdminMember, err := storage.NewBucketIAMMember(ctx, memberName, &storage.BucketIAMMemberArgs{
 				// Security logs bucket
-				Bucket: b.logging.SecurityLogsBucket.Name,
+				Bucket: b.securityLogs.LogsBucket.Name,
 				Role:   pulumi.String(role),
 				Member: pulumi.String(adminGroupMember),
-			}, pulumi.Parent(b), pulumi.DependsOn([]pulumi.Resource{b.logging.SecurityLogsBucket}))
+			}, pulumi.Parent(b), pulumi.DependsOn([]pulumi.Resource{b.securityLogs.LogsBucket}))
 			if err != nil {
 				return nil, fmt.Errorf("failed to create security logs admin IAM member for group %s: %w", adminGroup, err)
 			}
@@ -150,10 +150,10 @@ func (b *Bootstrap) setupIAMBindingsForStateBucket(ctx *pulumi.Context, config *
 			memberName := b.NewResourceName(fmt.Sprintf("audit-logs-security-%s", securityGroup), "iam-member", 63)
 			auditLogSecurityMember, err := storage.NewBucketIAMMember(ctx, memberName, &storage.BucketIAMMemberArgs{
 				// Audit logs bucket
-				Bucket: b.logging.AuditLogsBucket.Name,
+				Bucket: b.auditLogs.LogsBucket.Name,
 				Role:   pulumi.String(role),
 				Member: pulumi.String(securityGroupMember),
-			}, pulumi.Parent(b), pulumi.DependsOn([]pulumi.Resource{b.logging.AuditLogsBucket}))
+			}, pulumi.Parent(b), pulumi.DependsOn([]pulumi.Resource{b.auditLogs.LogsBucket}))
 			if err != nil {
 				return nil, fmt.Errorf("failed to create audit logs security IAM member for group %s: %w", securityGroup, err)
 			}
@@ -162,10 +162,10 @@ func (b *Bootstrap) setupIAMBindingsForStateBucket(ctx *pulumi.Context, config *
 			memberName = b.NewResourceName(fmt.Sprintf("security-logs-security-%s", securityGroup), "iam-member", 63)
 			securityLogSecurityMember, err := storage.NewBucketIAMMember(ctx, memberName, &storage.BucketIAMMemberArgs{
 				// Security logs bucket
-				Bucket: b.logging.SecurityLogsBucket.Name,
+				Bucket: b.securityLogs.LogsBucket.Name,
 				Role:   pulumi.String(role),
 				Member: pulumi.String(securityGroupMember),
-			}, pulumi.Parent(b), pulumi.DependsOn([]pulumi.Resource{b.logging.SecurityLogsBucket}))
+			}, pulumi.Parent(b), pulumi.DependsOn([]pulumi.Resource{b.securityLogs.LogsBucket}))
 			if err != nil {
 				return nil, fmt.Errorf("failed to create security logs security IAM member for group %s: %w", securityGroup, err)
 			}

@@ -17,9 +17,10 @@ type Bootstrap struct {
 
 	labels map[string]string
 
-	storage     *StorageComponents
-	logging     *LoggingComponents
-	orgPolicies []*projects.OrganizationPolicy
+	storage      *StorageComponents
+	auditLogs    *LoggingSinkBucket
+	securityLogs *LoggingSinkBucket
+	orgPolicies  []*projects.OrganizationPolicy
 }
 
 // NewBootstrap creates a new bootstrap infrastructure stack with all components
@@ -79,11 +80,12 @@ func (b *Bootstrap) deploy(ctx *pulumi.Context, args *BootstrapArgs) error {
 	}
 	b.storage = stateBucketComponents
 
-	loggingComponents, err := b.createSecureLoggingSinks(ctx, args)
+	auditLogsStorage, securityLogsStorage, err := b.createSecureLoggingSinks(ctx, args)
 	if err != nil {
 		return fmt.Errorf("failed to create logging components: %w", err)
 	}
-	b.logging = loggingComponents
+	b.auditLogs = auditLogsStorage
+	b.securityLogs = securityLogsStorage
 
 	bucketBindings, err := b.setupIAMBindingsForStateBucket(ctx, args)
 	if err != nil {
@@ -117,22 +119,17 @@ func (b *Bootstrap) GetKMSKeyID() pulumi.IDOutput {
 
 // GetAuditLogsBucketName returns the audit logs bucket name
 func (b *Bootstrap) GetAuditLogsBucketName() pulumi.StringOutput {
-	return b.logging.AuditLogsBucket.Name
+	return b.auditLogs.LogsBucket.Name
 }
 
 // GetSecurityLogsBucketName returns the security logs bucket name
 func (b *Bootstrap) GetSecurityLogsBucketName() pulumi.StringOutput {
-	return b.logging.SecurityLogsBucket.Name
+	return b.securityLogs.LogsBucket.Name
 }
 
 // GetStorageComponents returns the storage components
 func (b *Bootstrap) GetStorageComponents() *StorageComponents {
 	return b.storage
-}
-
-// GetLoggingComponents returns the logging components
-func (b *Bootstrap) GetLoggingComponents() *LoggingComponents {
-	return b.logging
 }
 
 // GetOrganizationPolicies returns the organization policies
@@ -150,10 +147,18 @@ func (b *Bootstrap) GetStateBucketBindings() []*storage.BucketIAMMember {
 
 // GetAuditLogsBucketURL returns the audit logs bucket URL
 func (b *Bootstrap) GetAuditLogsBucketURL() pulumi.StringOutput {
-	return b.logging.AuditLogsBucket.Url
+	return b.auditLogs.LogsBucket.Url
 }
 
 // GetSecurityLogsBucketURL returns the security logs bucket URL
 func (b *Bootstrap) GetSecurityLogsBucketURL() pulumi.StringOutput {
-	return b.logging.SecurityLogsBucket.Url
+	return b.securityLogs.LogsBucket.Url
+}
+
+func (b *Bootstrap) GetAuditLogsSinkBucket() *LoggingSinkBucket {
+	return b.auditLogs
+}
+
+func (b *Bootstrap) GetSecurityLogsSinkBucket() *LoggingSinkBucket {
+	return b.securityLogs
 }
