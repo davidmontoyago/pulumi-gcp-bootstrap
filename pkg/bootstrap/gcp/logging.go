@@ -34,57 +34,7 @@ func (b *Bootstrap) createSecureLoggingSinks(ctx *pulumi.Context, config *Bootst
 	auditLogsBucketLabels := maps.Clone(b.labels)
 	auditLogsBucketLabels["purpose"] = "audit-logs"
 	auditLogsBucketName := b.NewResourceName("audit-logs", "bucket", 63)
-	auditLogsBucketArgs := &storage.BucketArgs{
-		Name:     pulumi.String(auditLogsBucketName),
-		Location: pulumi.String(config.Region),
-		Project:  pulumi.String(config.LoggingDestinationProject),
-
-		UniformBucketLevelAccess: pulumi.Bool(true),
-		PublicAccessPrevention:   pulumi.String("enforced"),
-
-		Versioning: &storage.BucketVersioningArgs{
-			Enabled: pulumi.Bool(true),
-		},
-
-		LifecycleRules: storage.BucketLifecycleRuleArray{
-			&storage.BucketLifecycleRuleArgs{
-				Action: &storage.BucketLifecycleRuleActionArgs{
-					Type:         pulumi.String("SetStorageClass"),
-					StorageClass: pulumi.String("NEARLINE"),
-				},
-				Condition: &storage.BucketLifecycleRuleConditionArgs{
-					Age: pulumi.Int(30),
-				},
-			},
-			&storage.BucketLifecycleRuleArgs{
-				Action: &storage.BucketLifecycleRuleActionArgs{
-					Type:         pulumi.String("SetStorageClass"),
-					StorageClass: pulumi.String("COLDLINE"),
-				},
-				Condition: &storage.BucketLifecycleRuleConditionArgs{
-					Age: pulumi.Int(90),
-				},
-			},
-			&storage.BucketLifecycleRuleArgs{
-				Action: &storage.BucketLifecycleRuleActionArgs{
-					Type:         pulumi.String("SetStorageClass"),
-					StorageClass: pulumi.String("ARCHIVE"),
-				},
-				Condition: &storage.BucketLifecycleRuleConditionArgs{
-					Age: pulumi.Int(365),
-				},
-			},
-			&storage.BucketLifecycleRuleArgs{
-				Action: &storage.BucketLifecycleRuleActionArgs{
-					Type: pulumi.String("Delete"),
-				},
-				Condition: &storage.BucketLifecycleRuleConditionArgs{
-					Age: pulumi.Int(config.LoggingRetentionDays),
-				},
-			},
-		},
-		Labels: mapToStringMapInput(auditLogsBucketLabels),
-	}
+	auditLogsBucketArgs := newLoggingBucketDefaultArgs(auditLogsBucketName, config, auditLogsBucketLabels)
 
 	if config.EnableCustomerManagedEncryption {
 		// Create customer-managed key ring and key for encryption
@@ -116,57 +66,7 @@ func (b *Bootstrap) createSecureLoggingSinks(ctx *pulumi.Context, config *Bootst
 	securityLogsBucketLabels := maps.Clone(b.labels)
 	securityLogsBucketLabels["purpose"] = "security-logs"
 	securityLogsBucketName := b.NewResourceName("security-logs", "bucket", 63)
-	securityLogsBucketArgs := &storage.BucketArgs{
-		Name:     pulumi.String(securityLogsBucketName),
-		Location: pulumi.String(config.Region),
-		Project:  pulumi.String(config.LoggingDestinationProject),
-
-		UniformBucketLevelAccess: pulumi.Bool(true),
-		PublicAccessPrevention:   pulumi.String("enforced"),
-
-		Versioning: &storage.BucketVersioningArgs{
-			Enabled: pulumi.Bool(true),
-		},
-
-		LifecycleRules: storage.BucketLifecycleRuleArray{
-			&storage.BucketLifecycleRuleArgs{
-				Action: &storage.BucketLifecycleRuleActionArgs{
-					Type:         pulumi.String("SetStorageClass"),
-					StorageClass: pulumi.String("NEARLINE"),
-				},
-				Condition: &storage.BucketLifecycleRuleConditionArgs{
-					Age: pulumi.Int(30),
-				},
-			},
-			&storage.BucketLifecycleRuleArgs{
-				Action: &storage.BucketLifecycleRuleActionArgs{
-					Type:         pulumi.String("SetStorageClass"),
-					StorageClass: pulumi.String("COLDLINE"),
-				},
-				Condition: &storage.BucketLifecycleRuleConditionArgs{
-					Age: pulumi.Int(90),
-				},
-			},
-			&storage.BucketLifecycleRuleArgs{
-				Action: &storage.BucketLifecycleRuleActionArgs{
-					Type:         pulumi.String("SetStorageClass"),
-					StorageClass: pulumi.String("ARCHIVE"),
-				},
-				Condition: &storage.BucketLifecycleRuleConditionArgs{
-					Age: pulumi.Int(365),
-				},
-			},
-			&storage.BucketLifecycleRuleArgs{
-				Action: &storage.BucketLifecycleRuleActionArgs{
-					Type: pulumi.String("Delete"),
-				},
-				Condition: &storage.BucketLifecycleRuleConditionArgs{
-					Age: pulumi.Int(config.LoggingRetentionDays),
-				},
-			},
-		},
-		Labels: mapToStringMapInput(securityLogsBucketLabels),
-	}
+	securityLogsBucketArgs := newLoggingBucketDefaultArgs(securityLogsBucketName, config, securityLogsBucketLabels)
 
 	if config.EnableCustomerManagedEncryption {
 		// Create customer-managed key ring and key for encryption
@@ -193,7 +93,7 @@ func (b *Bootstrap) createSecureLoggingSinks(ctx *pulumi.Context, config *Bootst
 	}
 
 	// Create audit log sink for comprehensive audit trail
-	auditLogSinkName := b.NewResourceName("audit-sink", "sink", 63)
+	auditLogSinkName := b.NewResourceName("audit-logs", "sink", 63)
 	auditLogSink, err := logging.NewProjectSink(ctx, auditLogSinkName, &logging.ProjectSinkArgs{
 		Name:    pulumi.Sprintf(auditLogSinkName),
 		Project: pulumi.String(config.Project),
@@ -231,7 +131,7 @@ func (b *Bootstrap) createSecureLoggingSinks(ctx *pulumi.Context, config *Bootst
 	}
 
 	// Create security log sink for security-related events
-	securityLogSinkName := b.NewResourceName("security-sink", "sink", 63)
+	securityLogSinkName := b.NewResourceName("security-logs", "sink", 63)
 	securityLogSink, err := logging.NewProjectSink(ctx, securityLogSinkName, &logging.ProjectSinkArgs{
 		Name:    pulumi.Sprintf(securityLogSinkName),
 		Project: pulumi.String(config.Project),
@@ -267,4 +167,60 @@ func (b *Bootstrap) createSecureLoggingSinks(ctx *pulumi.Context, config *Bootst
 	loggingComponents.SecurityLogSink = securityLogSink
 
 	return loggingComponents, nil
+}
+
+func newLoggingBucketDefaultArgs(bucketName string, config *BootstrapArgs, bucketLabels map[string]string) *storage.BucketArgs {
+	auditLogsBucketArgs := &storage.BucketArgs{
+		Name:     pulumi.String(bucketName),
+		Location: pulumi.String(config.Region),
+		// TODO this may require a custom identity
+		Project: pulumi.String(config.LoggingDestinationProject),
+
+		UniformBucketLevelAccess: pulumi.Bool(true),
+		PublicAccessPrevention:   pulumi.String("enforced"),
+
+		Versioning: &storage.BucketVersioningArgs{
+			Enabled: pulumi.Bool(true),
+		},
+
+		LifecycleRules: storage.BucketLifecycleRuleArray{
+			&storage.BucketLifecycleRuleArgs{
+				Action: &storage.BucketLifecycleRuleActionArgs{
+					Type:         pulumi.String("SetStorageClass"),
+					StorageClass: pulumi.String("NEARLINE"),
+				},
+				Condition: &storage.BucketLifecycleRuleConditionArgs{
+					Age: pulumi.Int(30),
+				},
+			},
+			&storage.BucketLifecycleRuleArgs{
+				Action: &storage.BucketLifecycleRuleActionArgs{
+					Type:         pulumi.String("SetStorageClass"),
+					StorageClass: pulumi.String("COLDLINE"),
+				},
+				Condition: &storage.BucketLifecycleRuleConditionArgs{
+					Age: pulumi.Int(90),
+				},
+			},
+			&storage.BucketLifecycleRuleArgs{
+				Action: &storage.BucketLifecycleRuleActionArgs{
+					Type:         pulumi.String("SetStorageClass"),
+					StorageClass: pulumi.String("ARCHIVE"),
+				},
+				Condition: &storage.BucketLifecycleRuleConditionArgs{
+					Age: pulumi.Int(365),
+				},
+			},
+			&storage.BucketLifecycleRuleArgs{
+				Action: &storage.BucketLifecycleRuleActionArgs{
+					Type: pulumi.String("Delete"),
+				},
+				Condition: &storage.BucketLifecycleRuleConditionArgs{
+					Age: pulumi.Int(config.LoggingRetentionDays),
+				},
+			},
+		},
+		Labels: mapToStringMapInput(bucketLabels),
+	}
+	return auditLogsBucketArgs
 }
