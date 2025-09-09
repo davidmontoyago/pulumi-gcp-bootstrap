@@ -84,8 +84,8 @@ func TestLoadConfig(t *testing.T) { //nolint:paralleltest // Environment variabl
 		},
 	}
 
-	for _, testCase := range tests {
-		t.Run(testCase.name, func(t *testing.T) { //nolint:paralleltest // Environment variables are global and cannot be safely used in parallel tests
+	for _, testCase := range tests { //nolint:paralleltest
+		t.Run(testCase.name, func(t *testing.T) {
 			// Clear environment
 			clearEnvVars(t)
 
