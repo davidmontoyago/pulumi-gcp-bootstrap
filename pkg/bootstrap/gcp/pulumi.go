@@ -7,5 +7,6 @@ func mapToStringMapInput(m map[string]string) pulumi.StringMap {
 	for k, v := range m {
 		result[k] = pulumi.String(v)
 	}
+
 	return result
 }

@@ -119,6 +119,7 @@ func (b *Bootstrap) createSecurityLogsSink(ctx *pulumi.Context, config *Bootstra
 	if err != nil {
 		return nil, fmt.Errorf("failed to create security log sink: %w", err)
 	}
+
 	return securityLogSink, nil
 }
 
@@ -159,6 +160,7 @@ func (b *Bootstrap) createAuditLogsSink(ctx *pulumi.Context, config *BootstrapAr
 	if err != nil {
 		return nil, fmt.Errorf("failed to create audit log sink: %w", err)
 	}
+
 	return auditLogSink, nil
 }
 
@@ -298,5 +300,6 @@ func newLoggingBucketDefaultArgs(bucketName string, config *BootstrapArgs, bucke
 
 		ForceDestroy: pulumi.Bool(config.ForceDestroy),
 	}
+
 	return auditLogsBucketArgs
 }

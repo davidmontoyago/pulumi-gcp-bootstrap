@@ -1,8 +1,9 @@
-package gcp
+package gcp_test
 
 import (
 	"testing"
 
+	"github.com/davidmontoyago/pulumi-gcp-bootstrap/pkg/bootstrap/gcp"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/resource"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 	"github.com/stretchr/testify/assert"
@@ -14,7 +15,7 @@ func TestNewBootstrap_DefaultConfiguration(t *testing.T) {
 
 	err := pulumi.RunErr(func(ctx *pulumi.Context) error {
 		// Default test args (organization policies enabled by default for backward compatibility)
-		args := &BootstrapArgs{
+		args := &gcp.BootstrapArgs{
 			Project:                                 "test-project",
 			Region:                                  "us-central1",
 			StateBucketKeyRotationPeriod:            "7776000s", // 90 days
@@ -31,7 +32,7 @@ func TestNewBootstrap_DefaultConfiguration(t *testing.T) {
 			},
 		}
 
-		bootstrap, err := NewBootstrap(ctx, "test-bootstrap", args)
+		bootstrap, err := gcp.NewBootstrap(ctx, "test-bootstrap", args)
 		require.NoError(t, err)
 
 		// Verify basic properties
@@ -47,6 +48,7 @@ func TestNewBootstrap_DefaultConfiguration(t *testing.T) {
 		defer close(stateBucketNameCh)
 		bootstrap.GetStateBucketName().ApplyT(func(name string) error {
 			stateBucketNameCh <- name
+
 			return nil
 		})
 		stateBucketName := <-stateBucketNameCh
@@ -57,6 +59,7 @@ func TestNewBootstrap_DefaultConfiguration(t *testing.T) {
 		defer close(stateBucketURLCh)
 		bootstrap.GetStateBucketURL().ApplyT(func(url string) error {
 			stateBucketURLCh <- url
+
 			return nil
 		})
 		stateBucketURL := <-stateBucketURLCh
@@ -67,6 +70,7 @@ func TestNewBootstrap_DefaultConfiguration(t *testing.T) {
 		defer close(auditLogsBucketNameCh)
 		bootstrap.GetAuditLogsBucketName().ApplyT(func(name string) error {
 			auditLogsBucketNameCh <- name
+
 			return nil
 		})
 		auditLogsBucketName := <-auditLogsBucketNameCh
@@ -77,6 +81,7 @@ func TestNewBootstrap_DefaultConfiguration(t *testing.T) {
 		defer close(securityLogsBucketNameCh)
 		bootstrap.GetSecurityLogsBucketName().ApplyT(func(name string) error {
 			securityLogsBucketNameCh <- name
+
 			return nil
 		})
 		securityLogsBucketName := <-securityLogsBucketNameCh
@@ -154,7 +159,7 @@ func (m *testMocks) NewResource(args pulumi.MockResourceArgs) (string, resource.
 	return args.Name + "_id", resource.NewPropertyMapFromMap(outputs), nil
 }
 
-func (m *testMocks) Call(args pulumi.MockCallArgs) (resource.PropertyMap, error) {
+func (m *testMocks) Call(_ pulumi.MockCallArgs) (resource.PropertyMap, error) {
 	return resource.PropertyMap{}, nil
 }
 
@@ -163,7 +168,7 @@ func TestNewBootstrap_WithCustomerManagedKeys(t *testing.T) {
 
 	err := pulumi.RunErr(func(ctx *pulumi.Context) error {
 		// Test args with customer-managed encryption enabled
-		args := &BootstrapArgs{
+		args := &gcp.BootstrapArgs{
 			Project:                                 "test-project",
 			Region:                                  "us-central1",
 			StateBucketKeyRotationPeriod:            "7776000s", // 90 days
@@ -179,7 +184,7 @@ func TestNewBootstrap_WithCustomerManagedKeys(t *testing.T) {
 			},
 		}
 
-		bootstrap, err := NewBootstrap(ctx, "test-bootstrap", args)
+		bootstrap, err := gcp.NewBootstrap(ctx, "test-bootstrap", args)
 		require.NoError(t, err)
 
 		// Verify KMS key ID for state bucket
@@ -187,6 +192,7 @@ func TestNewBootstrap_WithCustomerManagedKeys(t *testing.T) {
 		defer close(kmsKeyIDCh)
 		bootstrap.GetKMSKeyID().ApplyT(func(keyID string) error {
 			kmsKeyIDCh <- keyID
+
 			return nil
 		})
 		kmsKeyID := <-kmsKeyIDCh
@@ -213,6 +219,7 @@ func TestNewBootstrap_WithCustomerManagedKeys(t *testing.T) {
 		defer close(auditLogsKeyIDCh)
 		loggingComponents.LogsCryptoKey.ID().ApplyT(func(keyID string) error {
 			auditLogsKeyIDCh <- keyID
+
 			return nil
 		})
 		auditLogsKeyID := <-auditLogsKeyIDCh
@@ -230,6 +237,7 @@ func TestNewBootstrap_WithCustomerManagedKeys(t *testing.T) {
 		defer close(securityLogsKeyIDCh)
 		loggingComponents.LogsCryptoKey.ID().ApplyT(func(keyID string) error {
 			securityLogsKeyIDCh <- keyID
+
 			return nil
 		})
 		securityLogsKeyID := <-securityLogsKeyIDCh
@@ -241,6 +249,7 @@ func TestNewBootstrap_WithCustomerManagedKeys(t *testing.T) {
 		defer close(stateBucketKeyIDCh)
 		storageComponents.CryptoKey.ID().ApplyT(func(keyID string) error {
 			stateBucketKeyIDCh <- keyID
+
 			return nil
 		})
 		stateBucketKeyID := <-stateBucketKeyIDCh
@@ -265,7 +274,7 @@ func TestNewBootstrap_WithoutCustomerManagedKeys(t *testing.T) {
 
 	err := pulumi.RunErr(func(ctx *pulumi.Context) error {
 		// Test args with customer-managed encryption disabled (default)
-		args := &BootstrapArgs{
+		args := &gcp.BootstrapArgs{
 			Project:                                 "test-project",
 			Region:                                  "us-central1",
 			StateBucketKeyRotationPeriod:            "7776000s", // 90 days
@@ -281,7 +290,7 @@ func TestNewBootstrap_WithoutCustomerManagedKeys(t *testing.T) {
 			},
 		}
 
-		bootstrap, err := NewBootstrap(ctx, "test-bootstrap", args)
+		bootstrap, err := gcp.NewBootstrap(ctx, "test-bootstrap", args)
 		require.NoError(t, err)
 
 		// Verify storage components do NOT have KMS resources when disabled
@@ -318,7 +327,7 @@ func TestNewBootstrap_WithOrganizationPolicies(t *testing.T) {
 
 	err := pulumi.RunErr(func(ctx *pulumi.Context) error {
 		// Test args with organization policies enabled
-		args := &BootstrapArgs{
+		args := &gcp.BootstrapArgs{
 			Project:                                 "test-project",
 			Region:                                  "us-central1",
 			StateBucketKeyRotationPeriod:            "7776000s", // 90 days
@@ -334,7 +343,7 @@ func TestNewBootstrap_WithOrganizationPolicies(t *testing.T) {
 			},
 		}
 
-		bootstrap, err := NewBootstrap(ctx, "test-bootstrap", args)
+		bootstrap, err := gcp.NewBootstrap(ctx, "test-bootstrap", args)
 		require.NoError(t, err)
 
 		// Verify organization policies are created when enabled
@@ -378,7 +387,7 @@ func TestNewBootstrap_WithoutOrganizationPolicies(t *testing.T) {
 
 	err := pulumi.RunErr(func(ctx *pulumi.Context) error {
 		// Test args with organization policies disabled (default)
-		args := &BootstrapArgs{
+		args := &gcp.BootstrapArgs{
 			Project:                                 "test-project",
 			Region:                                  "us-central1",
 			StateBucketKeyRotationPeriod:            "7776000s", // 90 days
@@ -394,7 +403,7 @@ func TestNewBootstrap_WithoutOrganizationPolicies(t *testing.T) {
 			},
 		}
 
-		bootstrap, err := NewBootstrap(ctx, "test-bootstrap", args)
+		bootstrap, err := gcp.NewBootstrap(ctx, "test-bootstrap", args)
 		require.NoError(t, err)
 
 		// Verify organization policies are NOT created when disabled
@@ -433,7 +442,7 @@ func TestNewBootstrap_EnsureSinkBucketRequiredIAM(t *testing.T) {
 
 	err := pulumi.RunErr(func(ctx *pulumi.Context) error {
 		// Test args to ensure sink IAM bindings are created
-		args := &BootstrapArgs{
+		args := &gcp.BootstrapArgs{
 			Project:                                 "test-project",
 			Region:                                  "us-central1",
 			StateBucketKeyRotationPeriod:            "7776000s", // 90 days
@@ -450,7 +459,7 @@ func TestNewBootstrap_EnsureSinkBucketRequiredIAM(t *testing.T) {
 			},
 		}
 
-		bootstrap, err := NewBootstrap(ctx, "test-bootstrap", args)
+		bootstrap, err := gcp.NewBootstrap(ctx, "test-bootstrap", args)
 		require.NoError(t, err)
 
 		// Test audit logs bucket IAM bindings
@@ -474,14 +483,17 @@ func TestNewBootstrap_EnsureSinkBucketRequiredIAM(t *testing.T) {
 
 			binding.Member.ApplyT(func(member string) error {
 				memberCh <- member
+
 				return nil
 			})
 			binding.Bucket.ApplyT(func(bucket string) error {
 				bucketCh <- bucket
+
 				return nil
 			})
 			binding.Role.ApplyT(func(role string) error {
 				roleCh <- role
+
 				return nil
 			})
 
@@ -497,6 +509,7 @@ func TestNewBootstrap_EnsureSinkBucketRequiredIAM(t *testing.T) {
 			auditSinkWriterIdentityCh := make(chan string, 1)
 			auditLoggingComponents.LogSink.WriterIdentity.ApplyT(func(identity string) error {
 				auditSinkWriterIdentityCh <- identity
+
 				return nil
 			})
 			expectedMember := <-auditSinkWriterIdentityCh
@@ -508,6 +521,7 @@ func TestNewBootstrap_EnsureSinkBucketRequiredIAM(t *testing.T) {
 			auditBucketNameCh := make(chan string, 1)
 			auditLoggingComponents.LogsBucket.Name.ApplyT(func(name string) error {
 				auditBucketNameCh <- name
+
 				return nil
 			})
 			expectedBucket := <-auditBucketNameCh
@@ -540,14 +554,17 @@ func TestNewBootstrap_EnsureSinkBucketRequiredIAM(t *testing.T) {
 
 			binding.Member.ApplyT(func(member string) error {
 				memberCh <- member
+
 				return nil
 			})
 			binding.Bucket.ApplyT(func(bucket string) error {
 				bucketCh <- bucket
+
 				return nil
 			})
 			binding.Role.ApplyT(func(role string) error {
 				roleCh <- role
+
 				return nil
 			})
 
@@ -563,6 +580,7 @@ func TestNewBootstrap_EnsureSinkBucketRequiredIAM(t *testing.T) {
 			securitySinkWriterIdentityCh := make(chan string, 1)
 			securityLoggingComponents.LogSink.WriterIdentity.ApplyT(func(identity string) error {
 				securitySinkWriterIdentityCh <- identity
+
 				return nil
 			})
 			expectedMember := <-securitySinkWriterIdentityCh
@@ -574,6 +592,7 @@ func TestNewBootstrap_EnsureSinkBucketRequiredIAM(t *testing.T) {
 			securityBucketNameCh := make(chan string, 1)
 			securityLoggingComponents.LogsBucket.Name.ApplyT(func(name string) error {
 				securityBucketNameCh <- name
+
 				return nil
 			})
 			expectedBucket := <-securityBucketNameCh

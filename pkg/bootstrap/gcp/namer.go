@@ -5,10 +5,12 @@ import (
 	"math"
 )
 
+// Namer provides consistent resource naming with length constraints
 type Namer struct {
 	baseName string
 }
 
+// NewNamer creates a new Namer instance with the given base name
 func NewNamer(baseName string) *Namer {
 	return &Namer{baseName: baseName}
 }

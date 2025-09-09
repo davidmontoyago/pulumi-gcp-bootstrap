@@ -5,7 +5,7 @@ go 1.24.4
 require (
 	github.com/kelseyhightower/envconfig v1.4.0
 	github.com/pulumi/pulumi-gcp/sdk/v8 v8.41.1
-	github.com/pulumi/pulumi/sdk/v3 v3.194.0
+	github.com/pulumi/pulumi/sdk/v3 v3.187.0
 	github.com/stretchr/testify v1.11.1
 )
 
@@ -33,6 +33,7 @@ require (
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/djherbis/times v1.5.0 // indirect
 	github.com/emirpasic/gods v1.18.1 // indirect
+	github.com/fatih/color v1.16.0 // indirect
 	github.com/go-git/gcfg v1.5.1-0.20230307220236-3a3c6141e376 // indirect
 	github.com/go-git/go-billy/v5 v5.6.1 // indirect
 	github.com/go-git/go-git/v5 v5.13.1 // indirect
@@ -67,7 +68,7 @@ require (
 	github.com/pulumi/appdash v0.0.0-20231130102222-75f619a67231 // indirect
 	github.com/pulumi/esc v0.17.0 // indirect
 	github.com/rivo/uniseg v0.4.4 // indirect
-	github.com/rogpeppe/go-internal v1.12.0 // indirect
+	github.com/rogpeppe/go-internal v1.13.1 // indirect
 	github.com/sabhiram/go-gitignore v0.0.0-20210923224102-525f6e181f06 // indirect
 	github.com/santhosh-tekuri/jsonschema/v5 v5.0.0 // indirect
 	github.com/sergi/go-diff v1.3.2-0.20230802210424-5b0b94c5c0d3 // indirect
@@ -95,4 +96,5 @@ require (
 	gopkg.in/warnings.v0 v0.1.2 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 	lukechampine.com/frand v1.4.2 // indirect
+	pgregory.net/rapid v0.6.1 // indirect
 )

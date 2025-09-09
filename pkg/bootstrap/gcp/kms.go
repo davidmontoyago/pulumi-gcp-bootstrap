@@ -31,5 +31,6 @@ func (b *Bootstrap) createEncryptionKey(ctx *pulumi.Context, config *BootstrapAr
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to create crypto key: %w", err)
 	}
+
 	return keyRing, cryptoKey, nil
 }

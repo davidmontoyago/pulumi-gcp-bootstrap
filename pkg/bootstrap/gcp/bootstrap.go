@@ -141,6 +141,7 @@ func (b *Bootstrap) GetStateBucketBindings() []*storage.BucketIAMMember {
 	if b.storage == nil {
 		return nil
 	}
+
 	return b.storage.stateBucketBindings
 }
 
@@ -154,10 +155,12 @@ func (b *Bootstrap) GetSecurityLogsBucketURL() pulumi.StringOutput {
 	return b.securityLogs.LogsBucket.Url
 }
 
+// GetAuditLogsSinkBucket returns the audit logs sink bucket components
 func (b *Bootstrap) GetAuditLogsSinkBucket() *LoggingSinkBucket {
 	return b.auditLogs
 }
 
+// GetSecurityLogsSinkBucket returns the security logs sink bucket components
 func (b *Bootstrap) GetSecurityLogsSinkBucket() *LoggingSinkBucket {
 	return b.securityLogs
 }

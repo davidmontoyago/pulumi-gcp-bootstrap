@@ -1,20 +1,21 @@
-package config
+package config_test
 
 import (
 	"os"
 	"testing"
 
+	"github.com/davidmontoyago/pulumi-gcp-bootstrap/pkg/bootstrap/config"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-func TestLoadConfig(t *testing.T) {
+func TestLoadConfig(t *testing.T) { //nolint:paralleltest // Environment variables are global and cannot be safely used in parallel tests
 	// Test cases
 	tests := []struct {
 		name        string
 		envVars     map[string]string
 		expectError bool
-		validate    func(t *testing.T, cfg *Config)
+		validate    func(t *testing.T, cfg *config.Config)
 	}{
 		{
 			name: "valid configuration with required fields",
@@ -23,7 +24,8 @@ func TestLoadConfig(t *testing.T) {
 				"REGION":  "us-central1",
 			},
 			expectError: false,
-			validate: func(t *testing.T, cfg *Config) {
+			validate: func(t *testing.T, cfg *config.Config) {
+				t.Helper()
 				assert.Equal(t, "test-project", cfg.Project)
 				assert.Equal(t, "us-central1", cfg.Region)
 				assert.Equal(t, "2592000s", cfg.StateBucketKeyRotationPeriod)
@@ -49,7 +51,8 @@ func TestLoadConfig(t *testing.T) {
 				"LABELS":                                       "environment=staging,team=platform",
 			},
 			expectError: false,
-			validate: func(t *testing.T, cfg *Config) {
+			validate: func(t *testing.T, cfg *config.Config) {
+				t.Helper()
 				assert.Equal(t, "custom-project", cfg.Project)
 				assert.Equal(t, "europe-west1", cfg.Region)
 				assert.Equal(t, "7776000s", cfg.StateBucketKeyRotationPeriod)
@@ -72,7 +75,8 @@ func TestLoadConfig(t *testing.T) {
 				"PROJECT": "default-test-project",
 			},
 			expectError: false,
-			validate: func(t *testing.T, cfg *Config) {
+			validate: func(t *testing.T, cfg *config.Config) {
+				t.Helper()
 				assert.Equal(t, "default-test-project", cfg.Project)
 				assert.Equal(t, "us-central1", cfg.Region)
 				assert.Equal(t, "default-test-project", cfg.LoggingDestinationProject)
@@ -80,28 +84,28 @@ func TestLoadConfig(t *testing.T) {
 		},
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
+	for _, testCase := range tests {
+		t.Run(testCase.name, func(t *testing.T) { //nolint:paralleltest // Environment variables are global and cannot be safely used in parallel tests
 			// Clear environment
 			clearEnvVars(t)
 
 			// Set test environment variables
-			for key, value := range tt.envVars {
+			for key, value := range testCase.envVars {
 				err := os.Setenv(key, value)
 				require.NoError(t, err)
 			}
 
 			// Test LoadConfig
-			cfg, err := LoadConfig()
+			cfg, err := config.LoadConfig()
 
-			if tt.expectError {
+			if testCase.expectError {
 				assert.Error(t, err)
 				assert.Nil(t, cfg)
 			} else {
 				assert.NoError(t, err)
 				require.NotNil(t, cfg)
-				if tt.validate != nil {
-					tt.validate(t, cfg)
+				if testCase.validate != nil {
+					testCase.validate(t, cfg)
 				}
 			}
 
@@ -112,6 +116,7 @@ func TestLoadConfig(t *testing.T) {
 }
 
 func clearEnvVars(t *testing.T) {
+	t.Helper()
 	envVars := []string{
 		"PROJECT",
 		"REGION",
@@ -131,7 +136,8 @@ func clearEnvVars(t *testing.T) {
 }
 
 func TestConfig_ToBootstrapArgs(t *testing.T) {
-	cfg := &Config{
+	t.Parallel()
+	cfg := &config.Config{
 		Project:                                 "test-project",
 		Region:                                  "us-west2",
 		StateBucketKeyRotationPeriod:            "7776000s",
@@ -166,7 +172,8 @@ func TestConfig_ToBootstrapArgs(t *testing.T) {
 }
 
 func TestConfig_ToBootstrapArgs_EmptyValues(t *testing.T) {
-	cfg := &Config{
+	t.Parallel()
+	cfg := &config.Config{
 		Project: "test-project",
 		Region:  "us-central1",
 	}
