@@ -117,6 +117,16 @@ func TestNewBootstrap_DefaultConfiguration(t *testing.T) {
 		// (1 admin group × 2 admin roles × 2 buckets) + (1 security group × 2 security roles × 2 buckets) = 8 bindings
 		assert.Equal(t, 8, len(stateBucketBindings), "Should have 8 IAM bindings (admin and security groups on both audit and security buckets)")
 
+		// Verify that each IAM binding has a unique resource name
+		resourceNames := make(map[string]bool)
+		for _, binding := range stateBucketBindings {
+			resourceName := binding.PulumiResourceName()
+
+			assert.False(t, resourceNames[resourceName], "Resource name %s should be unique, but it appears more than once", resourceName)
+			resourceNames[resourceName] = true
+		}
+		assert.Equal(t, len(stateBucketBindings), len(resourceNames), "All IAM bindings should have unique resource names")
+
 		return nil
 	}, pulumi.WithMocks("project", "stack", &testMocks{}))
 

@@ -108,12 +108,12 @@ func (b *Bootstrap) setupIAMBindingsForStateBucket(ctx *pulumi.Context, config *
 
 		adminGroupMember := adminGroup
 		if !strings.Contains(adminGroup, ":") {
-			// Default to group if not prexixed
+			// Default to group if not prefixed
 			adminGroupMember = fmt.Sprintf("group:%s", adminGroup)
 		}
 
 		for _, role := range loggingAdminRoles {
-			memberName := b.NewResourceName(fmt.Sprintf("audit-logs-admin-%s", adminGroup), "iam-member", 63)
+			memberName := b.NewResourceName(fmt.Sprintf("audit-logs-admin-%s-%s", adminGroup, role), "iam-member", 63)
 			auditLogAdminMember, err := storage.NewBucketIAMMember(ctx, memberName, &storage.BucketIAMMemberArgs{
 				// Audit logs bucket
 				Bucket: b.auditLogs.LogsBucket.Name,
@@ -125,7 +125,7 @@ func (b *Bootstrap) setupIAMBindingsForStateBucket(ctx *pulumi.Context, config *
 			}
 			bucketBindings = append(bucketBindings, auditLogAdminMember)
 
-			memberName = b.NewResourceName(fmt.Sprintf("security-logs-admin-%s", adminGroup), "iam-member", 63)
+			memberName = b.NewResourceName(fmt.Sprintf("security-logs-admin-%s-%s", adminGroup, role), "iam-member", 63)
 			securityLogAdminMember, err := storage.NewBucketIAMMember(ctx, memberName, &storage.BucketIAMMemberArgs{
 				// Security logs bucket
 				Bucket: b.securityLogs.LogsBucket.Name,
@@ -149,7 +149,7 @@ func (b *Bootstrap) setupIAMBindingsForStateBucket(ctx *pulumi.Context, config *
 		}
 
 		for _, role := range loggingSecurityRoles {
-			memberName := b.NewResourceName(fmt.Sprintf("audit-logs-security-%s", securityGroup), "iam-member", 63)
+			memberName := b.NewResourceName(fmt.Sprintf("audit-logs-security-%s-%s", securityGroup, role), "iam-member", 63)
 			auditLogSecurityMember, err := storage.NewBucketIAMMember(ctx, memberName, &storage.BucketIAMMemberArgs{
 				// Audit logs bucket
 				Bucket: b.auditLogs.LogsBucket.Name,
@@ -161,7 +161,7 @@ func (b *Bootstrap) setupIAMBindingsForStateBucket(ctx *pulumi.Context, config *
 			}
 			bucketBindings = append(bucketBindings, auditLogSecurityMember)
 
-			memberName = b.NewResourceName(fmt.Sprintf("security-logs-security-%s", securityGroup), "iam-member", 63)
+			memberName = b.NewResourceName(fmt.Sprintf("security-logs-security-%s-%s", securityGroup, role), "iam-member", 63)
 			securityLogSecurityMember, err := storage.NewBucketIAMMember(ctx, memberName, &storage.BucketIAMMemberArgs{
 				// Security logs bucket
 				Bucket: b.securityLogs.LogsBucket.Name,

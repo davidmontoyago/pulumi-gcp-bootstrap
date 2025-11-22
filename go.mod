@@ -3,7 +3,7 @@ module github.com/davidmontoyago/pulumi-gcp-bootstrap
 go 1.24.5
 
 require (
-	github.com/davidmontoyago/commodity-namer v0.1.1
+	github.com/davidmontoyago/commodity-namer v0.2.0
 	github.com/kelseyhightower/envconfig v1.4.0
 	github.com/pulumi/pulumi-gcp/sdk/v8 v8.41.1
 	github.com/pulumi/pulumi/sdk/v3 v3.187.0
