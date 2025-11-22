@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"maps"
 
+	namer "github.com/davidmontoyago/commodity-namer"
 	"github.com/pulumi/pulumi-gcp/sdk/v8/go/gcp/projects"
 	"github.com/pulumi/pulumi-gcp/sdk/v8/go/gcp/storage"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
@@ -13,7 +14,7 @@ import (
 // Bootstrap holds all the bootstrap infrastructure components
 type Bootstrap struct {
 	pulumi.ResourceState
-	Namer
+	namer.Namer
 
 	labels map[string]string
 
@@ -41,7 +42,7 @@ func NewBootstrap(ctx *pulumi.Context, name string, args *BootstrapArgs, opts ..
 	}
 
 	bootstrap := &Bootstrap{
-		Namer: *NewNamer(name),
+		Namer: namer.New(name, namer.WithReplace()),
 
 		labels: defaultLabels,
 	}
