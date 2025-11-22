@@ -20,7 +20,7 @@ lint:
 		-v $$(go env GOCACHE):/.cache/go-build -e GOCACHE=/.cache/go-build \
 		-v $$(go env GOMODCACHE):/.cache/mod -e GOMODCACHE=/.cache/mod \
 		-w /app \
-		golangci/golangci-lint:v2.3.0 \
+		golangci/golangci-lint:v2.4.0 \
 		golangci-lint run --fix --verbose --output.text.colors --timeout=10m
 
 upgrade:
